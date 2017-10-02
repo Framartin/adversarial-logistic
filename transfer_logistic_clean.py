@@ -1,5 +1,10 @@
 """
 CLEAN VERSION
+
+TODO:
+- test Binomial negative to account for overdispersion??
+- test scale parameter for overdispersion?
+
 """
 
 import statsmodels.api as sm
@@ -19,17 +24,14 @@ print(res.summary())
 #x_0 = data.exog[4,:]
 #x_0 = data.exog[6,:]
 x_0 = data.exog[1,:]
+print('pred sane: {0}'.format(res.predict(x_0)))
 # >>> res.predict(data.exog[4,:])
 # array([ 0.32251021])
 # >>> res.predict(data.exog[4,:], linear=True)
 beta_hat = res.params
 idx_beta_0 = 20 # column number corresponding to beta_0
 beta_hat_var = beta_hat[np.arange(len(beta_hat))!=idx_beta_0] # beta_hat without the constant (noted w in ML)
-#var_covar_matrix = res.normalized_cov_params # TODO: this is the normalized covar matrix.
-
-W = np.diag(res.fittedvalues*(1-res.fittedvalues))
-xt_w_x = data.exog.T.dot(W).dot(data.exog)
-var_covar_matrix = np.linalg.inv(xt_w_x)
+var_covar_matrix = res.normalized_cov_params
 
 #import pdb; pdb.set_trace()
 
@@ -44,7 +46,7 @@ eps = compute_adv_pertubation(x_0, beta_hat, beta_hat_var, idx_beta_0)
 
 preds = [(x + compute_adv_pertubation(x, beta_hat, beta_hat_var, idx_beta_0)).dot(beta_hat) for x in data.exog]
 
-def solve_lambda(alpha, x, beta_hat, eps, tolerance = 1e-10, verbose = False):
+def solve_lambda(alpha, x, beta_hat, eps, tolerance = 1e-8, verbose = False):
     if verbose:
         print('-----------')
     d = math.sqrt(2)*special.erfinv(2*alpha-1)
@@ -58,7 +60,7 @@ def solve_lambda(alpha, x, beta_hat, eps, tolerance = 1e-10, verbose = False):
     delta = b**2 - 4*a*c
     if delta < 0:
         if verbose:
-            print('No real solution')
+            print('No real solution. Delta: {0}'.format(delta))
         return None
     elif delta == 0:
         if verbose:
@@ -68,18 +70,21 @@ def solve_lambda(alpha, x, beta_hat, eps, tolerance = 1e-10, verbose = False):
         lambda1 = (-b - delta**0.5) / (2*a)
         lambda2 = (-b + delta**0.5) / (2*a)
         if verbose:
-            print('Two solutions: {0}, {1}'.format(lambda1, lambda2))
-        for lambda_star in [lambda2, lambda1]: # TODO: verifier que resiste a l'ordre
+            print('Two solutions: {0}, {1}'.format(lambda2, lambda1))
+        for lambda_star in [lambda1, lambda2]: #[lambda1, lambda2]: # TODO: verifier que resiste a l'ordre
             x_adv = x+lambda_star*eps
             eq = abs(x_adv.dot(beta_hat) + d*math.sqrt( x_adv.dot(var_covar_matrix).dot(x_adv)))
             # TODO: on est loin
-            print('Value eq: {0}'.format(eq))
+            if verbose:
+                print('Value eq: {0}'.format(eq))
             eq2 = abs(x_adv.dot(A).dot(x_adv))
-            print('Value eq2: {0}'.format(eq2))
-            print('--')
+            #print('Value eq2: {0}'.format(eq2))
+            #print('--')
             if eq < tolerance:
+                if verbose:
+                    print('----')
                 return lambda_star
-        #import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         raise ValueError('Error when solving the 2nd degres eq')
 
 #solve_lambda(alpha, x_0, beta_hat, eps, verbose = True)
@@ -87,17 +92,32 @@ def solve_lambda(alpha, x, beta_hat, eps, tolerance = 1e-10, verbose = False):
 #solve_lambda(0.7, x_0, beta_hat, eps, verbose = True)
 
 
-def plot_alpha_lambda(x, min_alpha=0.001, max_alpha=1, step=0.01):
+def plot_alpha_lambda(x, min_alpha=0, max_alpha=1, step=0.01, tolerance=1e-8, verbose=False):
     eps = compute_adv_pertubation(x, beta_hat, beta_hat_var, idx_beta_0)
     alpha_range = np.arange(min_alpha, max_alpha, step)
-    y_lambda = [solve_lambda(alpha, x, beta_hat, eps) for alpha in alpha_range]
+    y_lambda = [solve_lambda(alpha, x, beta_hat, eps, tolerance=tolerance, verbose=verbose) for alpha in alpha_range] # , math.inf
     plt.plot(alpha_range, y_lambda, 'r--')
     plt.show()
 
 #plot_alpha_lambda(x_0)
 #plot_alpha_lambda(x_0, min_alpha = 0.001, max_alpha=0.5, step = 0.001)
-plot_alpha_lambda(x_0, min_alpha = 0.5, max_alpha=0.999, step = 0.001)
+#plot_alpha_lambda(x_0, min_alpha = 0.501, max_alpha=0.999, step = 0.001)
 
+#plot_alpha_lambda(data.exog[2,:], min_alpha = 0.501, max_alpha=0.999, step = 0.001)
+
+#plot_alpha_lambda(data.exog[4,:], min_alpha = 0.501, max_alpha=0.999, step = 0.001)
+
+plot_alpha_lambda(data.exog[1,:], verbose=True)
+plot_alpha_lambda(data.exog[4,:], verbose=True)
+
+class AdversarialGLM():
+    """AdversarialGLM"""
+    def __init__(self, arg):
+        super(AdversarialGLM, self).__init__()
+        self.arg = arg
+    
+    def test(self):
+        print(self.arg)
 
 
 #def f(alpha, x_0 = x_0, beta_hat_0 = beta_hat_0, var_covar_matrix = var_covar_matrix, c = c):
