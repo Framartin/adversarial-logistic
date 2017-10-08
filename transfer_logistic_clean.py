@@ -4,8 +4,46 @@ CLEAN VERSION
 TODO:
 - test Binomial negative to account for overdispersion??
 - test scale parameter for overdispersion?
-
+- handle case were x_0 is already missclassified
 """
+
+
+### DATA
+import numpy as np
+import matplotlib.pyplot as plt
+import h5py
+import scipy
+#from PIL import Image
+from scipy import ndimage
+from lr_utils import load_dataset
+
+# https://www.kaggle.com/c/dogs-vs-cats/data
+
+train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = load_dataset()
+index = 25
+plt.imshow(train_set_x_orig[index])
+plt.show()
+train_set_x_flatten = train_set_x_orig.reshape(train_set_x_orig.shape[0], -1)
+test_set_x_flatten = test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)
+data = train_set_x_flatten/255
+data = sm.add_constant(data, prepend=False)
+y = train_set_y.T
+#glm_binom = sm.GLM(y, data, family=sm.families.Binomial())
+#res = glm_binom.fit()
+#res = glm_binom.fit_regularized()
+
+from sklearn import linear_model
+clf = linear_model.LogisticRegression(C=1e5)
+clf.fit(train_set_x_flatten.squeeze(), y)
+
+fittedvalues = clf.predict_proba(train_set_x_flatten)[:,clf.classes_==1]
+W = np.diag((fittedvalues*(1-fittedvalues)).squeeze())
+xt_w_x = train_set_x_flatten.T.dot(W).dot(train_set_x_flatten) # TODO: account for L1 regularization
+var_covar_matrix = np.linalg.inv(xt_w_x)
+
+
+###
+
 
 import statsmodels.api as sm
 import numpy as np
@@ -32,8 +70,6 @@ beta_hat = res.params
 idx_beta_0 = 20 # column number corresponding to beta_0
 beta_hat_var = beta_hat[np.arange(len(beta_hat))!=idx_beta_0] # beta_hat without the constant (noted w in ML)
 var_covar_matrix = res.normalized_cov_params
-
-#import pdb; pdb.set_trace()
 
 def compute_adv_pertubation(x, beta_hat, beta_hat_var, idx_beta_0, overshoot = 0.0):
     eps = - (x.dot(beta_hat)/sum(beta_hat_var**2)) * beta_hat_var

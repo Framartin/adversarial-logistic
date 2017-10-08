@@ -6,6 +6,8 @@ TODO:
 - extend to non-binary classification
 - non-continuous variables
 - write in this style: x_0.dot(beta_hat_0)
+- extend to multinomial (ça s'appelle comme ça??). More than 2 classes.
+- targeted / untargeted
 
 http://www.statsmodels.org/dev/examples/notebooks/generated/glm.html
 http://www.statsmodels.org/dev/glm.html
@@ -29,15 +31,18 @@ x_0 = data.exog[4,:]
 # >>> res.predict(data.exog[4,:])
 # array([ 0.32251021])
 beta_hat_0 = res.params
-var_covar_matrix = res.normalized_cov_params # TODO: this is the normalized covar matrix.
+#var_covar_matrix = res.normalized_cov_params # TODO: this is the normalized covar matrix.
 
+W = np.diag(res.fittedvalues*(1-res.fittedvalues))
+xt_w_x = data.exog.T.dot(W).dot(data.exog)
+var_covar_matrix = np.linalg.inv(xt_w_x)
+
+#import pdb; pdb.set_trace()
 
 def compute_adv_pertubation(x, beta):
     return np.dot((np.dot(x, beta))/(sum(beta * beta)), beta)
 
-x_adv_0 = compute_adv_pertubation(x_0, beta_hat_0)
-
-alpha = 0.05 # TODO: unify notation
+alpha = 0.05
 c = compute_adv_pertubation(x_0, beta_hat_0)
 
 def f(alpha, x_0 = x_0, beta_hat_0 = beta_hat_0, var_covar_matrix = var_covar_matrix, c = c):
@@ -59,7 +64,7 @@ plot_f(hline = d)
 #plot_f(0.0, 0.05, 0.0000001)
 
 def solve_lambda(beta_hat_0, x_0, c, d, var_covar_matrix, verbose=True):
-    A = c.dot(beta_hat_0)**2 - d**2 * ( c.dot(var_covar_matrix).dot(c) )
+    A = (c.dot(beta_hat_0))**2 - d**2 * ( c.dot(var_covar_matrix).dot(c) )
     #A = np.dot(c, beta_hat_0) ** 2 - d ** 2 * np.dot(np.dot(c, var_covar_matrix), c)
     B = 2 * np.dot(x_0, beta_hat_0) * np.dot(c, beta_hat_0) - d ** 2 * ( np.dot(np.dot(x_0, var_covar_matrix), c) + np.dot(np.dot(c, var_covar_matrix), x_0) )
     C = np.dot(x_0,  beta_hat_0) ** 2 - d ** 2 * np.dot(np.dot(x_0, var_covar_matrix), x_0)
@@ -79,11 +84,7 @@ def solve_lambda(beta_hat_0, x_0, c, d, var_covar_matrix, verbose=True):
         lambda2 = (-B + delta**0.5) / (2*A)
         if verbose:
             print('Two solutions: {0}, {1}'.format(lambda1, lambda2))
-        
-        #if min(lambda1, lambda2) < 1: #TODO
-        #    return max(lambda1, lambda2)
-        #else:
-        #    return min(lambda1, lambda2)
+
         return(max(lambda1, lambda2))
 
 lambda_star = solve_lambda(beta_hat_0, x_0, c, d, var_covar_matrix)
