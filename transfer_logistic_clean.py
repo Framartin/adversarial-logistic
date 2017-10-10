@@ -8,7 +8,7 @@ TODO:
 """
 
 
-### DATA
+### CAT vs NON-CAT
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
@@ -33,7 +33,7 @@ y = train_set_y.T
 #res = glm_binom.fit_regularized()
 
 from sklearn import linear_model
-clf = linear_model.LogisticRegression(C=1e5)
+clf = linear_model.LogisticRegression() # TODO: tune param C?
 clf.fit(train_set_x_flatten.squeeze(), y)
 
 fittedvalues = clf.predict_proba(train_set_x_flatten)[:,clf.classes_==1]
@@ -41,8 +41,35 @@ W = np.diag((fittedvalues*(1-fittedvalues)).squeeze())
 xt_w_x = train_set_x_flatten.T.dot(W).dot(train_set_x_flatten) # TODO: account for L1 regularization
 var_covar_matrix = np.linalg.inv(xt_w_x)
 
+### SPAM
 
-###
+# cd datasets
+# wget https://archive.ics.uci.edu/ml/machine-learning-databases/spambase/spambase.zip
+# unzip spambase.zip -d spam
+
+#test the computation of the covariance matrix
+import pandas as pd
+data = pd.read_csv('datasets/spam/spambase.data', header=None)
+data.rename(columns={57:'spam'}, inplace=True)
+y = data.pop('spam')
+data = sm.add_constant(data)
+glm_binom = sm.GLM(y, data, family=sm.families.Binomial())
+res = glm_binom.fit()
+print(res.summary())
+
+W = np.diag(res.fittedvalues*(1-res.fittedvalues))
+xt_w_x = data.T.dot(W).dot(data)
+var_covar_matrix = np.linalg.inv(xt_w_x)
+
+np.all(np.around(res.normalized_cov_params, 4)==np.around(var_covar_matrix, 4))
+np.max(np.max(res.normalized_cov_params - var_covar_matrix))
+
+# L2 regularized
+glm_L2 = sm.GLM(y, data, family=sm.families.Binomial())
+res_L2 = glm_L2.fit_regularized(alpha=1.0, L1_wt=0.0)
+res_L2.normalized_cov_params
+
+### ORIGINAL DATA GLM
 
 
 import statsmodels.api as sm
