@@ -8,6 +8,7 @@ from scipy import special, stats
 #import pdb; pdb.set_trace()
 
 #TODO: use one suclass for each model type
+#TODO: if the constant is already on X_train, beta0 is inside model.coef_ -> we don't need to ass it.
 
 class AdversarialLogistic(object):
     """docstring for AdversarialLogistic"""
@@ -32,20 +33,20 @@ class AdversarialLogistic(object):
                 self.idx_beta0 = 0
             else:
                 self.beta_hat_minus0 = self.beta_hat = model.coef_.squeeze()
-        elif self.module == 'statsmodels.genmod.generalized_linear_model':
+        elif module == 'statsmodels.genmod.generalized_linear_model':
             self.module = 'statsmodels'
             assert(X_train is not None)
-            self.beta_hat = model.params
-            idx_beta0 = detect_constant(X_train)
-            if idx_beta0 is None:
+            self.beta_hat = model.params.as_matrix().squeeze()
+            #idx_beta0 = self.detect_constant(X_train)
+            if 'const' not in model.params.index:
                 # No constant in (X, beta_hat) 
                 self.beta_hat_minus0 = model.params
             else:
                 # model has intercept, and a constant is in X_train and in x 
                 self.model_has_intercept = True
                 self.X_has_constant = True
-                self.beta_hat_minus0 = np.delete(model.params, idx_beta0)
-                self.idx_beta0 = idx_beta0
+                self.beta_hat_minus0 = model.params.drop('const').as_matrix().squeeze()
+                self.idx_beta0 = np.where('const' == model.params.index)[0].squeeze()
         else:
             raise ValueError('model not supported.')
         self.lower_bound=lower_bound
@@ -59,7 +60,10 @@ class AdversarialLogistic(object):
             elif x is not None:
                 return np.insert(x, 0, 1)
         else:
-            return X
+            if X is not None:
+                return X
+            elif x is not None:
+                return x
 
     def detect_constant(self, X_train):
         """statsmodels integrates the intercept in X_train and in beta_hat.
@@ -86,10 +90,9 @@ class AdversarialLogistic(object):
                 # statsmodels do not support the cov matrix for regularized GLM 
                 raise ValueError('Model not supported yet.')
         elif self.module == 'sklearn':
-            if False: # Logit without regularization
-                # not useful now, but maybe in the future 
+            if self.model.get_params()['C']>=1e10: # Logit without regularization
                 assert(X_train is not None)
-                yhat = clf.predict_proba(X_train_origin)[:,clf.classes_==1]
+                yhat = self.model.predict_proba(X_train_origin)[:,self.model.classes_==1]
                 W = np.diag((yhat*(1-yhat)).squeeze())
                 Xt_W_X = X_train.T.dot(W).dot(X_train)
                 unrestricted_cov_params = np.linalg.inv(Xt_W_X)
@@ -168,7 +171,6 @@ class AdversarialLogistic(object):
             for lambda_star in [lambda1, lambda2]: #[lambda1, lambda2]: # TODO: verifier que resiste a l'ordre
                 x_adv = x+lambda_star*delta
                 eq = abs(x_adv.dot(beta_hat) + d*math.sqrt( x_adv.dot(self.cov_params).dot(x_adv)))
-                # TODO: on est loin
                 if verbose:
                     print('Value eq: {0}'.format(eq))
                 #eq2 = abs(x_adv.dot(A).dot(x_adv))
@@ -181,6 +183,8 @@ class AdversarialLogistic(object):
         raise ValueError('Error when solving the 2nd degres eq')
 
     def plot_lambda_vs_alpha(self, x, min_alpha=0.001, max_alpha=0.999, step=0.01, tol=1e-6, verbose=False):
+        if not (hasattr(self, 'cov_params')):
+            raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
         x = self.add_constant(x=x)
         delta = self.compute_orthogonal_projection(x)
         alpha_range = np.arange(min_alpha, max_alpha, step)
@@ -189,9 +193,11 @@ class AdversarialLogistic(object):
         plt.show()
 
     def compute_adversarial_perturbation(self, x, y, alpha = 0.05, X_train=None, y_train=None, tol=1e-6, verbose=False):
+        #TODO: add tol to check range
+        #TODO: add clipping param
         x = self.add_constant(x=x)
-        if (hasattr(self, 'cov_params')):
-            self.compute_covariance(X_train, y_train)
+        if not (hasattr(self, 'cov_params')):
+            raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
         delta = self.compute_orthogonal_projection(x)
         x_adv_0 = x + delta
         # check range of x_adv_0
