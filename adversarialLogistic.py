@@ -16,32 +16,37 @@ class AdversarialLogistic(object):
         # check that we use the bernoouilli Logit, not the Binomial
         self.model = model
         module = getattr(model, '__module__')
-        self.need_add_constant = False
+        self.X_has_constant = False
         if(module == 'sklearn.linear_model.logistic'):
             self.module = 'sklearn'
             if model.get_params()['fit_intercept']:
                 self.beta_hat_minus0 = model.coef_
                 self.beta_hat = np.insert(model.coef_, 0, model.intercept_)
-                self.need_add_constant = True
             else:
                 self.beta_hat_minus0 = self.beta_hat = model.coef_.squeeze()
         elif(self.module == 'statsmodels.genmod.generalized_linear_model'):
             self.module = 'statsmodels'
             assert(X_train is not None)
-            idx_beta0 = detect_constant(X_train)
             self.beta_hat = model.params
-            self.beta_hat_minus0 = np.delete(model.params, idx_beta0)
+            idx_beta0 = detect_constant(X_train)
+            if idx_beta0 is None:
+                # No constant in (X, beta_hat) 
+                self.beta_hat_minus0 = model.params
+            else:
+                self.beta_hat_minus0 = np.delete(model.params, idx_beta0)
+                self.X_has_constant = True
+                self.idx_beta0 = idx_beta0
         else:
             raise ValueError('')
         self.lower_bound=lower_bound
         self.upper_bound=upper_bound
     
-    def add_constant(self, X):
-        """Add constant column to the X matrix"""
-        if self.need_add_constant == True:
-            return sm.add_constant(X, prepend=True)
-        else:
-            return X
+#    def add_constant(self, X):
+#        """Add constant column to the X matrix"""
+#        if self.need_add_constant == True:
+#            return sm.add_constant(X, prepend=True)
+#        else:
+#            return X
 
     def detect_constant(self, X_train):
         """statsmodels integrates the intercept in X_train and in beta_hat.
@@ -99,12 +104,23 @@ class AdversarialLogistic(object):
         else:
             raise Exception('CovarianceNotSupported')
 
-    def compute_orthogonal_projection(self, x, idx_beta0, overshoot = 1e-6):
+    def compute_orthogonal_projection(self, x, overshoot = 1e-6):
         """Compute the orthogonal projection of x on the decision hyperplane, which is the 
-        optimal L2-adversarial pertubation"""
+        optimal L2-adversarial pertubation.
+
+        Parameters
+        ----------
+        x : array_like
+            1-D array of the example to perturbate.
+        overshoot : float
+            Multiplies the adversarial pertubation by (1 + overshoot) to overcome underflow issues. 
+        """
         beta_hat = self.beta_hat
-        beta_hat_var = beta_hat[]
-        delta = - (x.dot(beta_hat)/sum(beta_hat_var**2)) * beta_hat_var
+        beta_hat_minus0 = self.beta_hat_minus0
+        delta = - (x.dot(beta_hat)/sum(beta_hat_minus0**2)) * beta_hat_minus0
         delta = delta * (1 + overshoot)
-        delta = np.insert(delta, idx_beta_0, 0) # add back the constant
+        if self.X_has_constant:
+            delta = np.insert(delta, self.idx_beta0, 0) # add back the constant
         self.delta = delta
+
+        
