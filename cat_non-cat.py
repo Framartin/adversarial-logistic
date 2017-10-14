@@ -1,4 +1,8 @@
 ### DOGS vs CATS
+"""
+https://www.kaggle.com/c/dogs-vs-cats/data
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
@@ -16,19 +20,20 @@ import os
 
 TRAIN_DIR = 'data/cats/data64/train'
 
-# https://www.kaggle.com/c/dogs-vs-cats/data
+
+# TODO: account for the impossibility to perturbate gray bars
 
 def import_images():
     train_cats = sorted(glob.glob(os.path.join(TRAIN_DIR, 'cat*.jpg')))
     train_dogs = sorted(glob.glob(os.path.join(TRAIN_DIR, 'dog*.jpg')))
     train_cats = train_cats[0:100] #TODO
     train_dogs = train_dogs[0:100] #TODO
-    n = len(train_dogs) + len(train_dogs)
+    n = len(train_cats) + len(train_dogs)
     y = np.zeros((1,n))
     images = []
     for image_path in train_cats:
         images.append(misc.imread(image_path, mode='RGB'))
-    y[0:len(train_cats)] = 1
+    y[0, 0:len(train_cats)] = 1
     for image_path in train_dogs:
         images.append(misc.imread(image_path, mode='RGB'))
     X = np.asarray(images)
@@ -38,20 +43,29 @@ def import_images():
 
 X, y = import_images()
 
+
+
 #train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = load_dataset()
 #index = 25
-#plt.imshow(train_set_x_orig[index])
-#plt.show()
-X_train = train_set_x_orig.reshape(train_set_x_orig.shape[0], -1).squeeze()
-X_test = test_set_x_orig.reshape(test_set_x_orig.shape[0], -1).squeeze()
-X_train = X_train/255
-X_test = X_test/255
+plt.imshow(X[1])
+plt.show()
+plt.imshow(X[-1])
+plt.show()
+# TODO: divide into train/test?
+X_train = X.reshape(X.shape[0], -1).squeeze()
+#X_train = X_train/255
 #X_train = sm.add_constant(X_train, prepend=True)
 #X_test = sm.add_constant(X_test, prepend=True)
-y_train = train_set_y.T
-y_test = test_set_y.T
+y_train = y.T
 
-del train_set_x_orig, train_set_y, test_set_x_orig, test_set_y
+# save a nice cat that wants to becomes a dog
+x_0_origin = X[4,:].squeeze()
+x_0 = x_0_origin.reshape(1, -1)
+y_0 = y[4,:].squeeze()
+plt.imshow(x_0_origin)
+plt.show()
+
+del X, y
 
 #glm_binom = sm.GLM(y, data, family=sm.families.Binomial())
 #res = glm_binom.fit()
@@ -59,11 +73,17 @@ del train_set_x_orig, train_set_y, test_set_x_orig, test_set_y
 
 lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', random_state = 42)
 lr_l2_CV.fit(X_train, y_train)
-bestC = lr_l2_CV.C_
+bestC = lr_l2_CV.C_[0]
 print('C: {0}'.format(bestC))
+del lr_l2_CV
 
 lr_l2 = linear_model.LogisticRegression(penalty = 'l2', random_state = 42, C=bestC)
 lr_l2.fit(X_train, y_train)
+
+print('x_0 is predicted as: {0}'.format(lr_l2.predict(x_0)[0]))
+
+
+# Perturbate the cat power
 
 adv = AdversarialLogistic(lr_l2, lower_bound=0, upper_bound=255)
 print(adv.beta_hat.shape)
@@ -76,23 +96,22 @@ with open('adv.cov_params.pkl', 'rb') as input:
     adv.cov_params = pickle.load(input)
 
 
-x_0 = X_test[0,:].squeeze()
-y_0 = y_test[0,:].squeeze()
 #adv.plot_lambda_vs_alpha(x_0)
 
-x_adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=0.95, out_bounds='clipping')
+alphas = [0.75, 0.9, 0.95]
+x_adv = [adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping') for alpha in alphas]
 
 #fig = plt.figure()
 #plt.figure()
 #a = fig.add_subplot(2,2,1)
-f, axarr = plt.subplots(2,2)
+f, axarr = plt.subplots(2,3)
 axarr[0,0].imshow(x_0.reshape(64,64,3))
-axarr[0,0].set_title('Benign example')
+axarr[0,0].set_title('Benign Example')
 axarr[0,1].imshow(x_adv['x_adv_0'][1:].reshape(64,64,3))
-axarr[0,1].set_title('Orthogonal example')
+axarr[0,1].set_title('Orthogonal Projection')
 axarr[1,0].imshow(x_adv['x_adv_star'][1:].reshape(64,64,3))
-axarr[1,0].set_title('0.95-logistic adversarial example')
+axarr[1,0].set_title('0.95-Logistic Adversarial Example')
 delta_star_plot = np.abs(x_adv['x_adv_star'][1:].reshape(64,64,3) - x_0.reshape(64,64,3))
 axarr[1,1].imshow(delta_star_plot)
-axarr[1,1].set_title('0.95-logistic adversarial perturbation')
+axarr[1,1].set_title('0.95-Logistic Adversarial Perturbation')
 plt.show()
