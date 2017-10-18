@@ -1,7 +1,10 @@
 """
-DOGS vs CATS
+Dogs vs Cats
 
-https://www.kaggle.com/c/dogs-vs-cats/data
+This script runs a logistic regression to classify images as cat or dog, 
+and computes adversarial images according to different confidence levels.
+
+Data and details are available at: https://www.kaggle.com/c/dogs-vs-cats/data
 """
 
 import numpy as np
@@ -114,13 +117,10 @@ print(adv.beta_hat.shape)
 with open('adv.pkl', 'rb') as input:
     adv = pickle.load(input)
 
-
-#adv.plot_lambda_vs_alpha(x_0)
-
-
+#TODO:
+#adv.plot_lambda_vs_alpha(x_0, y_0)
 
 for index, test_image in enumerate(X_test):
-    print('x_0 is predicted as: {0}'.format(lr_l2.predict(x_0)[0]))
     x_0 = test_image.reshape(test_image.shape[0], -1).squeeze()
     y_0 = y_test[index]
     pred_x_0 = lr_l2.predict(x_0)
@@ -128,7 +128,8 @@ for index, test_image in enumerate(X_test):
         print('Test example #{0} is not predicted correctly by the model({1} vs {2}). Ignored.'.format(index, pred_x_0, y_0))
         continue
     x_adv = [adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping') for alpha in ALPHAS]
-
+    print('Original test example #{0} predicted as: {1}'.format(index, lr_l2.predict(x_0)[0]))
+    # plot the images
     f, axarr = plt.subplots(1+len(ALPHAS),2)
     axarr[0,0].imshow(x_0.reshape(64,64,3))
     axarr[0,0].set_title('Original Example')
