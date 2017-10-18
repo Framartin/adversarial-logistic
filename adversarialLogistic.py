@@ -1,3 +1,12 @@
+"""
+
+TODO:
+- use one subclass for each model type for cleaner implementation
+- fix bug: handle the case where, for sklearn, if the constant is already on X_train, beta0 is inside model.coef_
+- remove dependance on statsmodels
+- add documentation
+"""
+
 import statsmodels.api as sm
 from sklearn import linear_model
 import numpy as np
@@ -6,9 +15,6 @@ import matplotlib.pyplot as plt
 from scipy import special, stats
 
 #import pdb; pdb.set_trace()
-
-#TODO: use one suclass for each model type
-#TODO: if the constant is already on X_train, beta0 is inside model.coef_ -> we don't need to ass it.
 
 class AdversarialLogistic(object):
     """docstring for AdversarialLogistic"""
@@ -146,6 +152,11 @@ class AdversarialLogistic(object):
             delta = np.insert(delta, self.idx_beta0, 0) # add back the constant
         return delta
 
+    def compute_alpha(self, alpha, y):
+        if np.sign(y) == 1:
+            return alpha
+        else:
+            return 1-alpha
 
     def solve_lambda(self, alpha, x, delta, tol = 1e-6, verbose = False):
         if verbose:
@@ -177,21 +188,19 @@ class AdversarialLogistic(object):
                 eq = abs(x_adv.dot(beta_hat) + d*math.sqrt( x_adv.dot(self.cov_params).dot(x_adv)))
                 if verbose:
                     print('Value eq: {0}'.format(eq))
-                #eq2 = abs(x_adv.dot(A).dot(x_adv))
-                #print('Value eq2: {0}'.format(eq2))
-                #print('--')
                 if eq < tol:
                     if verbose:
                         print('----')
                     return lambda_star
         raise ValueError('Error when solving the 2nd degree equation.')
 
-    def plot_lambda_vs_alpha(self, x, alpha_min=0.001, alpha_max=0.999, step=0.01, tol=1e-6, verbose=False):
+    def plot_lambda_vs_alpha(self, x, y, alpha_min=0.001, alpha_max=0.999, step=0.01, tol=1e-6, verbose=False):
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
         x = self.add_constant(x=x)
         delta = self.compute_orthogonal_projection(x)
         alpha_range = np.arange(alpha_min, alpha_max, step)
+        alpha_range = [self.compute_alpha(alpha, y) for alpha in alpha_range]
         lambdas = [self.solve_lambda(alpha, x, delta, tol=tol, verbose=verbose) for alpha in alpha_range]
         plt.plot(alpha_range, lambdas, 'r--')
         plt.show()
@@ -214,12 +223,11 @@ class AdversarialLogistic(object):
 
     def compute_adversarial_perturbation(self, x, y, alpha = 0.05, out_bounds='nothing', tol=1e-6, verbose=False):
         # param out_bounds: 'clipping' or 'missing' or 'nothing'
-        #TODO: check sign(y) -> value of alpha
         #TODO: add tol to check range
-        #TODO: add clipping param
         x = self.add_constant(x=x)
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
+        alpha = self.compute_alpha(alpha, y)
         delta = self.compute_orthogonal_projection(x)
         x_adv_0 = x + delta
         # check range of x_adv_0
@@ -231,5 +239,6 @@ class AdversarialLogistic(object):
         # check range of x_adv_star
         x_adv_star = self.check_bounds(x_adv_star, out_bounds)
         # check pred(x_adv_star)
-        assert(np.sign(x_adv_star.dot(self.beta_hat)) != np.sign(y))
+        if alpha > 0.5:
+            assert(np.sign(x_adv_star.dot(self.beta_hat)) != np.sign(y))
         return {'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
