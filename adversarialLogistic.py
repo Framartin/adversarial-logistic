@@ -5,6 +5,8 @@ TODO:
 - fix bug: handle the case where, for sklearn, if the constant is already on X_train, beta0 is inside model.coef_
 - remove dependance on statsmodels
 - add documentation
+- improve plot alpha
+- fix computation of alpha
 """
 
 import statsmodels.api as sm
@@ -202,7 +204,10 @@ class AdversarialLogistic(object):
         alpha_range = np.arange(alpha_min, alpha_max, step)
         alpha_range = [self.compute_alpha(alpha, y) for alpha in alpha_range]
         lambdas = [self.solve_lambda(alpha, x, delta, tol=tol, verbose=verbose) for alpha in alpha_range]
-        plt.plot(alpha_range, lambdas, 'r--')
+        plt.style.use('ggplot') #bmh
+        plt.plot(alpha_range, lambdas)
+        plt.xlabel('Missclassification level (α)')
+        plt.ylabel('Intensity of the pertubation (δ)')
         plt.show()
 
     def check_bounds(self, x_adv, out_bounds):
