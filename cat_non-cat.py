@@ -8,23 +8,18 @@ Data and details are available at: https://www.kaggle.com/c/dogs-vs-cats/data
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-import h5py
-import scipy
-from scipy import ndimage
-#from lr_utils import load_dataset
-import statsmodels.api as sm
 from sklearn import linear_model
-from adversarialLogistic import AdversarialLogistic
-import pickle
-import glob
-#from PIL import Image
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
 from scipy import misc
 import os
+import glob
+import pickle
+from adversarialLogistic import AdversarialLogistic
 
 TRAIN_DIR = 'data/cats/data64/train'
 TEST_DIR = 'data/cats/data64/test'
-# cats and dogs that don't like identity:
+# cats and dogs who want to change their identities:
 # squared images without gray bands
 IDS_TEST_EXAMPLES = [('dog', 2), ('cat', 5), ('dog', 21), ('cat', 28), ('cat', 45), ('cat', 58), ('cat', 90)]
 # values of alphas to compute adversarial examples
