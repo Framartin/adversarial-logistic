@@ -108,23 +108,10 @@ class AdversarialLogistic(object):
                 del X_train
                 self.cov_params = np.linalg.inv(Xt_W_X) # unrestricted Var(beta)
             elif self.model.get_params()['penalty']=='l2': #L2 Regularized Logit
-                assert(X_train is not None and y_train is not None)
-                # we need to fit the unregularized logit to have an estimate of Omega(beta_0)
-                # scikit-learn do not yet support unregularized logistic regression.
-                # An hacky solution is to set C to a very high value. Note that the 
-                # statsmodels implementation is too slow for some ML datasets
-                # See: https://github.com/scikit-learn/scikit-learn/issues/6738
-                # Question: is there a better way to compute Var(beta) without the unrestricted estimation?
-                sklearn_params = self.model.get_params()
-                sklearn_params['C'] = 1e12
-                unregularized_model = linear_model.LogisticRegression()
-                unregularized_model.set_params(**sklearn_params)
-                unregularized_model.fit(X_train_origin, y_train)
-                if unregularized_model.n_iter_ >= sklearn_params['max_iter']:
-                    print('Warning! Max number of iterations reached. May not be optimal.')
-                yhat_ur = unregularized_model.predict_proba(X_train_origin)[:,unregularized_model.classes_==1]
+                assert(X_train is not None)
+                yhat = self.model.predict_proba(X_train_origin)[:,self.model.classes_==1]
                 del X_train_origin
-                W = np.diag((yhat_ur*(1-yhat_ur)).squeeze())
+                W = np.diag((yhat*(1-yhat)).squeeze())
                 Xt_W_X = X_train.T.dot(W).dot(X_train)
                 del X_train
                 lambda_c = 1.0/self.model.get_params()['C']
