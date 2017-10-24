@@ -1,12 +1,11 @@
 """
 
+
 TODO:
 - use one subclass for each model type for cleaner implementation
 - fix bug: handle the case where, for sklearn, if the constant is already on X_train, beta0 is inside model.coef_
 - remove dependance on statsmodels
 - add documentation
-- improve plot alpha
-- fix computation of alpha
 """
 
 import statsmodels.api as sm
@@ -46,7 +45,7 @@ class AdversarialLogistic(object):
             self.module = 'statsmodels'
             assert(X_train is not None)
             self.beta_hat = model.params.as_matrix().squeeze()
-            #idx_beta0 = self.detect_constant(X_train)
+            #idx_beta0 = self.__detect_constant(X_train)
             if 'const' not in model.params.index:
                 # No constant in (X, beta_hat) 
                 self.beta_hat_minus0 = model.params
@@ -61,8 +60,8 @@ class AdversarialLogistic(object):
         self.lower_bound=lower_bound
         self.upper_bound=upper_bound
     
-    def add_constant(self, X=None, x=None):
-        """Add constant column to the X matrix if needed"""
+    def __add_constant(self, X=None, x=None):
+        """Add constant column to the X matrix or to the x vector if needed"""
         if self.model_has_intercept and not self.X_has_constant:
             if X is not None:
                 return sm.add_constant(X, prepend=True)
@@ -74,25 +73,24 @@ class AdversarialLogistic(object):
             elif x is not None:
                 return x
 
-    def detect_constant(self, X_train):
-        """statsmodels integrates the intercept in X_train and in beta_hat.
-        This function computes the index column of the constant."""
-        temp = np.where(np.all(X_train==1., axis=0))[0]
-        if temp.shape[0] == 1:
-            # There is a constant
-            return temp[0]
-        elif temp.shape[0] > 1:
-            raise ValueError('There is at least 2 constant features in X_train.')
-        else:
-            return None
+#    def __detect_constant(self, X_train):
+#        """statsmodels integrates the intercept in X_train and in beta_hat.
+#        This function computes the index column of the constant."""
+#        temp = np.where(np.all(X_train==1., axis=0))[0]
+#        if temp.shape[0] == 1:
+#            # There is a constant
+#            return temp[0]
+#        elif temp.shape[0] > 1:
+#            raise ValueError('There is at least 2 constant features in X_train.')
+#        else:
+#            return None
 
-    def compute_covariance(self, X_train=None, y_train=None, force=False):
+    def compute_covariance(self, X_train=None, y_train=None):
         """Compute the variance-covariance matrix of beta_hat"""
-        #TODO: code force param properly
         X_train_origin = X_train
-        X_train = self.add_constant(X_train)
+        X_train = self.__add_constant(X_train)
         if self.module == 'statsmodels':
-            if hasattr(self.model, 'normalized_cov_params') and not force:
+            if hasattr(self.model, 'normalized_cov_params'):
                 # statsmodels GLM computes the covariance matrix
                 self.cov_params = self.model.normalized_cov_params
             else:
@@ -141,7 +139,7 @@ class AdversarialLogistic(object):
             delta = np.insert(delta, self.idx_beta0, 0) # add back the constant
         return delta
 
-    def compute_alpha(self, alpha, y):
+    def __compute_alpha(self, alpha, y):
         if np.sign(y) == 1:
             return alpha
         else:
@@ -186,10 +184,10 @@ class AdversarialLogistic(object):
     def plot_lambda_vs_alpha(self, x, y, alpha_min=0.001, alpha_max=0.999, step=0.01, tol=1e-6, verbose=False):
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
-        x = self.add_constant(x=x)
+        x = self.__add_constant(x=x)
         delta = self.compute_orthogonal_projection(x)
         alpha_range = np.arange(alpha_min, alpha_max, step)
-        alpha_range = [self.compute_alpha(alpha, y) for alpha in alpha_range]
+        alpha_range = [self.__compute_alpha(alpha, y) for alpha in alpha_range]
         lambdas = [self.solve_lambda(alpha, x, delta, tol=tol, verbose=verbose) for alpha in alpha_range]
         plt.style.use('ggplot') #bmh
         plt.plot(alpha_range, lambdas)
@@ -197,7 +195,8 @@ class AdversarialLogistic(object):
         plt.ylabel('Intensity of the pertubation (δ)')
         plt.show()
 
-    def check_bounds(self, x_adv, out_bounds):
+    def __check_bounds(self, x_adv, out_bounds):
+        #TODO: add tol parameters. For example, if x_adv - self.lower_bound < abs, we can clip instead.
         assert(out_bounds in ['clipping', 'missing', 'nothing'])
         if np.any(x_adv < self.lower_bound):
             print('Adversarial example x_adv < lower_bound.')
@@ -213,24 +212,23 @@ class AdversarialLogistic(object):
                 x_adv[x_adv > self.upper_bound] = self.upper_bound
         return x_adv
 
-    def compute_adversarial_perturbation(self, x, y, alpha = 0.05, out_bounds='nothing', tol=1e-6, verbose=False):
+    def compute_adversarial_perturbation(self, x, y, alpha = 0.95, out_bounds='nothing', tol=1e-6, verbose=False):
         # param out_bounds: 'clipping' or 'missing' or 'nothing'
-        #TODO: add tol to check range
-        x = self.add_constant(x=x)
+        x = self.__add_constant(x=x)
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
-        alpha = self.compute_alpha(alpha, y)
+        alpha = self.__compute_alpha(alpha, y)
         delta = self.compute_orthogonal_projection(x)
         x_adv_0 = x + delta
         # check range of x_adv_0
-        x_adv_0 = self.check_bounds(x_adv_0, out_bounds)
+        x_adv_0 = self.__check_bounds(x_adv_0, out_bounds)
         # check pred(x_adv_0)
         assert(np.sign(x_adv_0.dot(self.beta_hat)) != np.sign(y))
         lambda_star = self.solve_lambda(alpha, x, delta, tol=tol, verbose=verbose)
         x_adv_star = x + lambda_star * delta
         # check range of x_adv_star
-        x_adv_star = self.check_bounds(x_adv_star, out_bounds)
+        x_adv_star = self.__check_bounds(x_adv_star, out_bounds)
         # check pred(x_adv_star)
-        if alpha > 0.5:
+        if alpha > 0.5 + tol:
             assert(np.sign(x_adv_star.dot(self.beta_hat)) != np.sign(y))
         return {'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
