@@ -13,6 +13,7 @@ from sklearn import linear_model
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy import special, stats
 
 #import pdb; pdb.set_trace()
@@ -181,54 +182,87 @@ class AdversarialLogistic(object):
                     return lambda_star
         raise ValueError('Error when solving the 2nd degree equation.')
 
-    def plot_lambda_vs_alpha(self, x, y, alpha_min=0.001, alpha_max=0.999, step=0.01, tol=1e-6, verbose=False):
-        if not (hasattr(self, 'cov_params')):
-            raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
-        x = self.__add_constant(x=x)
-        delta = self.compute_orthogonal_projection(x)
-        alpha_range = np.arange(alpha_min, alpha_max, step)
-        alpha_range = [self.__compute_alpha(alpha, y) for alpha in alpha_range]
-        lambdas = [self.solve_lambda(alpha, x, delta, tol=tol, verbose=verbose) for alpha in alpha_range]
-        plt.style.use('ggplot') #bmh
-        plt.plot(alpha_range, lambdas)
-        plt.xlabel('Missclassification level (α)')
-        plt.ylabel('Intensity of the pertubation (δ)')
-        plt.show()
-
-    def __check_bounds(self, x_adv, out_bounds):
+    def __check_bounds(self, x_adv, out_bounds, verbose=True):
         #TODO: add tol parameters. For example, if x_adv - self.lower_bound < abs, we can clip instead.
         assert(out_bounds in ['clipping', 'missing', 'nothing'])
         if np.any(x_adv < self.lower_bound):
-            print('Adversarial example x_adv < lower_bound.')
+            if verbose:
+                print('Adversarial example x_adv < lower_bound.')
             if out_bounds == 'missing':
                 return None
             elif out_bounds == 'clipping':
                 x_adv[x_adv < self.lower_bound] = self.lower_bound
         if np.any(x_adv > self.upper_bound):
-            print('Adversarial example x_adv > upper_bound.')
+            if verbose:
+                print('Adversarial example x_adv > upper_bound.')
             if out_bounds == 'missing':
                 return None
             elif out_bounds == 'clipping':
                 x_adv[x_adv > self.upper_bound] = self.upper_bound
         return x_adv
 
-    def compute_adversarial_perturbation(self, x, y, alpha = 0.95, out_bounds='nothing', tol=1e-6, verbose=False):
+    def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, verbose=False):
+        """
+        - alpha: float or list of float
+        """
         # param out_bounds: 'clipping' or 'missing' or 'nothing'
         x = self.__add_constant(x=x)
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
-        alpha = self.__compute_alpha(alpha, y)
         delta = self.compute_orthogonal_projection(x)
         x_adv_0 = x + delta
         # check range of x_adv_0
         x_adv_0 = self.__check_bounds(x_adv_0, out_bounds)
         # check pred(x_adv_0)
-        assert(np.sign(x_adv_0.dot(self.beta_hat)) != np.sign(y))
-        lambda_star = self.solve_lambda(alpha, x, delta, tol=tol, verbose=verbose)
-        x_adv_star = x + lambda_star * delta
-        # check range of x_adv_star
-        x_adv_star = self.__check_bounds(x_adv_star, out_bounds)
-        # check pred(x_adv_star)
-        if alpha > 0.5 + tol:
-            assert(np.sign(x_adv_star.dot(self.beta_hat)) != np.sign(y))
-        return {'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
+        assert(np.sign(x_adv_0.dot(self.beta_hat)) != np.sign(y)) # the overshoot should prevent underflow
+
+        if type(alpha) == float:
+            alpha = [self.__compute_alpha(alpha, y)]
+        elif type(alpha) == list:
+            alpha = [self.__compute_alpha(a, y) for a in alpha]
+        else:
+            raise Exception('Invalid alpha parameter')
+
+        results = []
+        for a in alpha:
+            lambda_star = self.solve_lambda(a, x, delta, tol=tol, verbose=verbose)
+            x_adv_star = x + lambda_star * delta
+            # check range of x_adv_star
+            x_adv_star = self.__check_bounds(x_adv_star, out_bounds, verbose=verbose)
+            # check pred(x_adv_star)
+            if a > 0.5 + tol:
+                assert(np.sign(x_adv_star.dot(self.beta_hat)) != np.sign(y))
+            # return dict if only one alpha
+            if len(alpha) == 1:
+               return {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
+            # return list of dicts if several alphas
+            else:
+                results.append({'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0})
+        return results
+
+def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **kwargs):
+    """
+    - args: list of dict return by compute_adversarial_perturbation, one list of dict for each model
+    - labels: labels associated to *args in the same order
+    - colors: colors associated to *args in the same order
+    - ylim: tuple ex: (-1, 3)
+    - filename: str . If None, show the plot.
+    """
+    # for each model (ie. list of dicts in args)
+    fig = plt.figure(figsize=(8, 5), dpi=150)
+    sns.set(style="ticks")
+    if ylim is not None:
+        plt.ylim(ylim)
+    #plt.style.use('ggplot') #bmh
+    for i, perturbations in enumerate(args):
+        assert(type(perturbations)==list)
+        alphas = [x['alpha'] for x in perturbations]
+        lambdas = [x['lambda_star'] for x in perturbations]
+        plt.plot(alphas, lambdas, label=labels[i], color=colors[i], **kwargs)
+    plt.xlabel('Missclassification level (α)')
+    plt.ylabel('Intensity of the pertubation (δ)')
+    plt.legend()
+    if filename is None:
+        plt.show()
+    else:
+        plt.savefig(filename)
