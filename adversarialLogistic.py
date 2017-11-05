@@ -5,7 +5,6 @@ TODO:
 - use one subclass for each model type for cleaner implementation
 - fix bug: handle the case where, for sklearn, if the constant is already on X_train, beta0 is inside model.coef_
 - remove dependance on statsmodels
-- add documentation
 """
 
 import statsmodels.api as sm
@@ -19,7 +18,8 @@ from scipy import special, stats
 #import pdb; pdb.set_trace()
 
 class AdversarialLogistic(object):
-    """docstring for AdversarialLogistic"""
+    """AdversarialLogistic is a class to compute the intensity of an adversarial 
+    perturbation for a given logistic regression."""
 
     def __init__(self, model, X_train=None, lower_bound=float('-inf'), upper_bound=float('inf')):
         super(AdversarialLogistic, self).__init__()
@@ -87,7 +87,7 @@ class AdversarialLogistic(object):
 #            return None
 
     def compute_covariance(self, X_train=None, y_train=None):
-        """Compute the variance-covariance matrix of beta_hat"""
+        """Compute the variance-covariance matrix of beta_hat if needed"""
         X_train_origin = X_train
         X_train = self.__add_constant(X_train)
         if self.module == 'statsmodels':
@@ -141,12 +141,29 @@ class AdversarialLogistic(object):
         return delta
 
     def __compute_alpha(self, alpha, y):
+        """Compute alpha to acomodate for the sign of the perturbation."""
         if np.sign(y) == 1:
             return alpha
         else:
             return 1-alpha
 
-    def solve_lambda(self, alpha, x, delta, tol = 1e-6, verbose = False):
+    def __solve_lambda(self, alpha, x, delta, tol = 1e-6, verbose = False):
+        """Solve the 2nd degree equation for lambda to a given missclassification level.
+
+        Parameters
+        ----------
+        alpha : float
+            Missclassification level.
+        x : array_like
+            1-D array of the example to perturbate.
+        delta : array_like
+            1-D array of the adversarial example to intensify.
+        tol : float
+            Tolerance needed for underflow.
+        verbose : bool
+            For debug.
+        """
+
         if verbose:
             print('-----------')
         beta_hat = self.beta_hat
@@ -183,7 +200,10 @@ class AdversarialLogistic(object):
         raise ValueError('Error when solving the 2nd degree equation.')
 
     def __check_bounds(self, x_adv, out_bounds, verbose=True):
-        #TODO: add tol parameters. For example, if x_adv - self.lower_bound < abs, we can clip instead.
+        """Check if x_adv is inside the bounds.
+        out_bounds defines what to do: clipping, missing ou nothing
+
+        TODO: add tol parameters. For example, if x_adv - self.lower_bound < abs, we can clip instead."""
         assert(out_bounds in ['clipping', 'missing', 'nothing'])
         if np.any(x_adv < self.lower_bound):
             if verbose:
@@ -202,10 +222,20 @@ class AdversarialLogistic(object):
         return x_adv
 
     def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, verbose=False):
+        """Compute the adversarial perturbation "intensified" to achieve a given missclassification level.
+
+        Parameters
+        ----------
+        x : array_like
+            1-D array of the example to perturbate.
+        y : array_like
+            Single element array corresponding to the true class of x.
+        alpha : float or list of float
+            Missclassification level. If a list, pertubations are computed for each float and a list is returned.
+        out_bounds : str
+            Comportement when the new adversarial example is outside bounds. Can be set to 'clipping' or 'missing' or 'nothing'.
         """
-        - alpha: float or list of float
-        """
-        # param out_bounds: 'clipping' or 'missing' or 'nothing'
+
         x = self.__add_constant(x=x)
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
@@ -225,7 +255,7 @@ class AdversarialLogistic(object):
 
         results = []
         for a in alpha:
-            lambda_star = self.solve_lambda(a, x, delta, tol=tol, verbose=verbose)
+            lambda_star = self.__solve_lambda(a, x, delta, tol=tol, verbose=verbose)
             x_adv_star = x + lambda_star * delta
             # check range of x_adv_star
             x_adv_star = self.__check_bounds(x_adv_star, out_bounds, verbose=verbose)
@@ -241,16 +271,25 @@ class AdversarialLogistic(object):
         return results
 
 def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **kwargs):
+    """Plot the intensities of the perturbations associated to the missclassification levels, for multiple models.
+
+    Parameters
+    ----------
+    args : list
+        List of dicts returned by compute_adversarial_perturbation(), one list of dicts per model.
+    labels : list of str
+        Labels of models associated to args in the same order. 
+    colors : list of colors
+        Labels of colors associated to args in the same order.
+    ylim : tuple or None
+        Can be set to impose limits to the y axis. Example: (-1, 3).
+    filename : str
+        Save the plot to this file. Is None, print the plot.
     """
-    - args: list of dict return by compute_adversarial_perturbation, one list of dict for each model
-    - labels: labels associated to *args in the same order
-    - colors: colors associated to *args in the same order
-    - ylim: tuple ex: (-1, 3)
-    - filename: str . If None, show the plot.
-    """
+
     # for each model (ie. list of dicts in args)
     fig = plt.figure(figsize=(8, 5), dpi=150)
-    sns.set(style="ticks")
+    #sns.set(style="ticks") # whitegrid
     if ylim is not None:
         plt.ylim(ylim)
     #plt.style.use('ggplot') #bmh
