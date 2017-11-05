@@ -2,6 +2,7 @@
 
 
 TODO:
+- fix __compute_alpha() that doesn't handle propertly the case where y_0=0
 - use one subclass for each model type for cleaner implementation
 - fix bug: handle the case where, for sklearn, if the constant is already on X_train, beta0 is inside model.coef_
 - remove dependance on statsmodels
@@ -103,7 +104,7 @@ class AdversarialLogistic(object):
                 yhat = self.model.predict_proba(X_train_origin)[:,self.model.classes_==1]
                 del X_train_origin
                 W = np.diag((yhat*(1-yhat)).squeeze())
-                Xt_W_X = X_train.T.dot(W).dot(X_train)
+                Xt_W_X = np.dot(X_train.T.dot(W), X_train)
                 del X_train
                 self.cov_params = np.linalg.inv(Xt_W_X) # unrestricted Var(beta)
             elif self.model.get_params()['penalty']=='l2': #L2 Regularized Logit
@@ -111,7 +112,7 @@ class AdversarialLogistic(object):
                 yhat = self.model.predict_proba(X_train_origin)[:,self.model.classes_==1]
                 del X_train_origin
                 W = np.diag((yhat*(1-yhat)).squeeze())
-                Xt_W_X = X_train.T.dot(W).dot(X_train)
+                Xt_W_X = np.dot(X_train.T.dot(W), X_train)
                 del X_train
                 lambda_c = 1.0/self.model.get_params()['C']
                 invOmegaLambda = np.linalg.inv(Xt_W_X + 2*lambda_c*np.identity(Xt_W_X.shape[0]))
