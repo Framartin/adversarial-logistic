@@ -9,7 +9,9 @@ import statsmodels.api as sm
 from adversarialLogistic import AdversarialLogistic
 from adversarialLogistic import plot_intensity_vs_level
 from sklearn import linear_model
-import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn import metrics
+
 
 ALPHAS = np.arange(0.001, 0.999, 0.001).tolist()
 
@@ -19,21 +21,26 @@ y = data.pop('spam')
 X = data
 X_with_const = sm.add_constant(data)
 
-# prepare plot
-fig = plt.figure(figsize=(8, 5), dpi=150)
+# stratified CV
+X_train, X_test, X_train_with_const, X_test_with_const, y_train, y_test = train_test_split(
+    X, X_with_const, y, test_size=0.30, random_state=42, stratify=y)
+del X, X_with_const, y # avoid bugs
 
-idx_x0 = 1 #-1
-x_0 = X.iloc[[idx_x0]].as_matrix()
-x_0_with_const = X_with_const.iloc[[idx_x0]].as_matrix().squeeze()
-y_0 = y.iloc[[idx_x0]].squeeze()
+idx_x0 = 3 #0
+x_0 = X_test.iloc[[idx_x0]].as_matrix()
+x_0_with_const = X_test_with_const.iloc[[idx_x0]].as_matrix().squeeze()
+y_0 = y_test.iloc[[idx_x0]].squeeze()
 
-glm_binom = sm.GLM(y, X_with_const, family=sm.families.Binomial())
+glm_binom = sm.GLM(y_train, X_train_with_const, family=sm.families.Binomial())
 res = glm_binom.fit()
+y_pred = (res.predict(exog=X_test_with_const) > 0.5)
+glm_acc = metrics.accuracy_score(y_test, y_pred)
 
-adv_glm = AdversarialLogistic(res, X_train=X_with_const,lower_bound=0)
+adv_glm = AdversarialLogistic(res, X_train=X_train_with_const,lower_bound=0)
 adv_glm.compute_covariance()
 x_adv_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0, alpha=0.95)
 print('**GLM**')
+print('performance: {0}'.format(glm_acc))
 print('real y_0: {0}'.format(y_0))
 print('predict x_0: {0}'.format(res.predict(exog=x_0_with_const)))
 print('predict x_adv_0: {0}'.format(res.predict(exog=x_adv_glm['x_adv_0'])))
@@ -42,7 +49,7 @@ print('lambda_star: {0}'.format(x_adv_glm['lambda_star']))
 #adv_glm.plot_lambda_vs_alpha(x=x_0_with_const, y=y_0, matplotlib=plt, alpha_max = 0.96, label = 'GLM', color='r')
 # explode in alpha=0.98 
 # store for future plot
-pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0, alpha=np.arange(0.001, 0.96, 0.001).tolist(), verbose=False)
+pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0, alpha=np.arange(0.001, 0.93, 0.001).tolist(), verbose=False)
 
 # L2 regularized statsmodels
 # the computation of cov_params is not implemented.
@@ -55,20 +62,23 @@ pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0,
 # An hacky solution is to set C to a very high value.
 # See: https://github.com/scikit-learn/scikit-learn/issues/6738
 
-lr = linear_model.LogisticRegression(C = 1e12, random_state = 42)
-lr.fit(X, y)
+lr = linear_model.LogisticRegression(C = 1e12, random_state = 1234)
+lr.fit(X_train, y_train)
+y_pred = lr.predict(X_test)
+lr_acc = metrics.accuracy_score(y_test, y_pred)
 
 # compare estimates
 lr.coef_.squeeze()
 res.params.as_matrix()
 
 adv_sk = AdversarialLogistic(lr, lower_bound=0)
-adv_sk.compute_covariance(X, y)
+adv_sk.compute_covariance(X_train = X_train, y_train = y_train)
 x_adv_sk = adv_sk.compute_adversarial_perturbation(x_0, y_0, alpha=0.95)
 x_adv_sk_0 = x_adv_sk['x_adv_0'][1:].reshape((1, x_adv_sk['x_adv_0'].shape[0]-1))
 x_adv_sk_star = x_adv_sk['x_adv_star'][1:].reshape((1, x_adv_sk['x_adv_star'].shape[0]-1))
 print('**Unregularized sklearn**')
-print('number of iterations: {0}'.format(lr.n_iter_))
+print('number of iterations: {0}'.format(lr.n_iter_[0]))
+print('performance: {0}'.format(lr_acc))
 print('predict x_0: {0}'.format(lr.predict_proba(x_0)[0,adv_sk.model.classes_==1][0]))
 print('predict x_adv_0: {0}'.format(lr.predict_proba(x_adv_sk_0)[0,adv_sk.model.classes_==1][0]))
 print('predict x_adv_star: {0}'.format(lr.predict_proba(x_adv_sk_star)[0,adv_sk.model.classes_==1][0]))
@@ -80,15 +90,19 @@ pertubations_sk = adv_sk.compute_adversarial_perturbation(x_0, y_0, alpha=ALPHAS
 
 # L2 regularized sklearn
 lr_l2 = linear_model.LogisticRegression(penalty = 'l2', random_state = 42) # TODO: tune param C?
-lr_l2.fit(X, y)
+lr_l2.fit(X_train, y_train)
+y_pred = lr_l2.predict(X_test)
+lr_l2_acc = metrics.accuracy_score(y_test, y_pred)
+
 
 adv_skl2 = AdversarialLogistic(lr_l2, lower_bound=0)
-adv_skl2.compute_covariance(X, y)
+adv_skl2.compute_covariance(X_train, y_train)
 x_adv_skl2 = adv_skl2.compute_adversarial_perturbation(x_0, y_0, alpha=0.95)
 x_adv_skl2_0 = x_adv_skl2['x_adv_0'][1:].reshape((1, x_adv_skl2['x_adv_0'].shape[0]-1))
 x_adv_skl2_star = x_adv_skl2['x_adv_star'][1:].reshape((1, x_adv_skl2['x_adv_star'].shape[0]-1))
 print('**L2-regularized sklearn**')
 print('number of iterations: {0}'.format(lr_l2.n_iter_))
+print('performance: {0}'.format(lr_l2_acc))
 print('predict x_0: {0}'.format(lr_l2.predict_proba(x_0)[0,adv_skl2.model.classes_==1][0]))
 print('predict x_adv_0: {0}'.format(lr_l2.predict_proba(x_adv_skl2_0)[0,adv_skl2.model.classes_==1][0]))
 print('predict x_adv_star: {0}'.format(lr_l2.predict_proba(x_adv_skl2_star)[0,adv_skl2.model.classes_==1][0]))
@@ -107,7 +121,7 @@ pertubations_skl2 = adv_skl2.compute_adversarial_perturbation(x_0, y_0, alpha=AL
 # 1. between the statsmodels one, and the one of our code using the estimated betas by GLM 
 print('Covariance statsmodels/custom code on GLM:')
 W = np.diag(res.fittedvalues*(1-res.fittedvalues))
-Xt_W_X = X_with_const.T.dot(W).dot(X_with_const)
+Xt_W_X = np.dot(X_train_with_const.T.dot(W), X_train_with_const)
 var_covar_matrix = np.linalg.inv(Xt_W_X)
 del Xt_W_X
 
