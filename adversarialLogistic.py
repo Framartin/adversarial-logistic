@@ -194,7 +194,7 @@ class AdversarialLogistic(object):
                 print('Two solutions: {0}, {1}'.format(lambda2, lambda1))
             for lambda_star in [lambda1, lambda2]: #[lambda1, lambda2]: # TODO: verifier que resiste a l'ordre
                 x_adv = x + lambda_star*delta
-                eq = abs(x_adv.dot(beta_hat) + d*math.sqrt( x_adv.dot(self.cov_params).dot(x_adv)))
+                eq = abs(x_adv.dot(beta_hat) + d*math.sqrt( x_adv.T.dot(self.cov_params).dot(x_adv)))
                 if verbose:
                     print('Value eq: {0}'.format(eq))
                 if eq < tol:
@@ -225,6 +225,26 @@ class AdversarialLogistic(object):
                 x_adv[x_adv > self.upper_bound] = self.upper_bound
         return x_adv
 
+    def __compute_probability_predx_equals_y(self, x, y):
+        """
+        Assuming that beta hat is a normal random vector, computes the probability that pred(x)=y, ie.
+        - x^T beta < 0, if y = 0
+        - x^T beta >= 0 if y = 1
+        """
+        assert(y in [0,1])
+        if not (hasattr(self, 'cov_params')):
+            raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
+        # compute the estimation of the mean and variance of the normal random variable x^T beta_hat
+        mu = x.dot(self.beta_hat).squeeze()
+        sigma = x.T.dot(self.cov_params).dot(x).squeeze()
+        assert(type(mu) is float and type(sigma) is float)
+        proba_xbeta_inf_0 = stats.norm.cdf(0, loc=mu, scale=sigma)
+        if y == 0:
+            return proba_xbeta_inf_0
+        elif y==1:
+            proba_xbeta_sup_0 = 1-proba # probability that x^T beta > 0
+        return proba
+
     def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, verbose=False, verbose_bounds=True):
         """Compute the adversarial perturbation "intensified" to achieve a given missclassification level.
 
@@ -245,10 +265,19 @@ class AdversarialLogistic(object):
         x = self.__add_constant(x=x)
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
+        assert(y in [0,1])
+        x_correctly_predicted = (y_0 == (x.dot(self.beta_hat) >= 0)) # is x correctly predicted by the model?
         delta = self.compute_orthogonal_projection(x)
+        if x_correctly_predicted:
+            pass
+        else:    
+            delta = -delta # the perturbation moves away from the decision hyperplane
         x_adv_0 = x + delta
         # check range of x_adv_0
-        x_adv_0 = self.__check_bounds(x_adv_0, out_bounds, verbose=verbose_bounds)
+        if x_correctly_predicted:
+            x_adv_0 = self.__check_bounds(x_adv_0, out_bounds, verbose=verbose_bounds)
+        else:
+            pass # don't check, because x_adv_0 is "fictional". Only delta will be used to set the direction to move.
         # check pred(x_adv_0)
         # the overshoot should prevent underflow
         if y == 1:
@@ -258,6 +287,7 @@ class AdversarialLogistic(object):
         else:
             raise ValueError('y should be 1 or 0.')
 
+        #TODO: change this. This is not good. Current implementation breaks the __compute_probability_predx_equals_y()
         if type(alpha) == float:
             alpha = [self.__compute_alpha(alpha, y)]
         elif type(alpha) == list:
@@ -265,21 +295,33 @@ class AdversarialLogistic(object):
         else:
             raise Exception('Invalid alpha parameter')
 
+        # compute (only 1 time) P[pred(x)=y]
+        if x_correctly_predicted:
+            proba_predx_equals_y = None # not computed, because not used
+        else:
+            proba_predx_equals_y = self.__compute_probability_predx_equals_y(x, y)
+
         results = []
         for a in alpha:
-            lambda_star = self.__solve_lambda(a, x, delta, tol=tol, verbose=verbose)
-            x_adv_star = x + lambda_star * delta
-            # check range of x_adv_star
-            x_adv_star = self.__check_bounds(x_adv_star, out_bounds, verbose=verbose)
-            # check pred(x_adv_star)
-            if a > 0.5 + tol:
-                assert(np.sign(x_adv_star.dot(self.beta_hat)) != np.sign(y))
-            # return dict if only one alpha
+            if (not x_correctly_predicted) and (proba_predx_equals_y >= alpha):
+                # x already ok, ie. P[pred(x)=y] >= alpha 
+                result_dict = {'alpha': a, 'lambda_star': 0, 'x_adv_star': x, 'x_adv_0': None}
+            else:
+                lambda_star = self.__solve_lambda(a, x, delta, tol=tol, verbose=verbose)
+                x_adv_star = x + lambda_star * delta
+                # check range of x_adv_star
+                x_adv_star = self.__check_bounds(x_adv_star, out_bounds, verbose=verbose)
+                # check pred(x_adv_star)
+                if a > 0.5 + tol:
+                    assert(np.sign(x_adv_star.dot(self.beta_hat)) != np.sign(y))
+                result_dict = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
+                # return dict if only one alpha
             if len(alpha) == 1:
-               return {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
+               return result_dict
             # return list of dicts if several alphas
             else:
-                results.append({'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0})
+                results.append(result_dict)
+        # TODO: add check using __compute_probability_predx_equals_y() >= alpha
         return results
 
 def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **kwargs):
