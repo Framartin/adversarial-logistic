@@ -1,6 +1,8 @@
 """
 Spambase Data Set
 https://archive.ics.uci.edu/ml/datasets/spambase
+
+TODO : http://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
 """
 
 import numpy as np
@@ -11,9 +13,12 @@ from adversarialLogistic import plot_intensity_vs_level
 from sklearn import linear_model
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 ALPHAS = np.arange(0.001, 0.999, 0.001).tolist()
+COLORS_MODELS = ['r', 'orange', 'orchid']
 
 data = pd.read_csv('data/spam/spambase.data', header=None)
 data.rename(columns={57:'spam'}, inplace=True)
@@ -33,14 +38,17 @@ y_0 = y_test.iloc[[idx_x0]].squeeze()
 
 glm_binom = sm.GLM(y_train, X_train_with_const, family=sm.families.Binomial())
 res = glm_binom.fit()
+y_pred = (res.predict(exog=X_train_with_const) > 0.5)
+glm_acc_is = metrics.accuracy_score(y_train, y_pred)
 y_pred = (res.predict(exog=X_test_with_const) > 0.5)
-glm_acc = metrics.accuracy_score(y_test, y_pred)
+glm_acc_oos = metrics.accuracy_score(y_test, y_pred)
 
 adv_glm = AdversarialLogistic(res, X_train=X_train_with_const,lower_bound=0)
 adv_glm.compute_covariance()
 x_adv_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0, alpha=0.95)
 print('**GLM**')
-print('performance: {0}'.format(glm_acc))
+print('accuracy in-sample: {0}'.format(glm_acc_is))
+print('accuracy out-of-sample: {0}'.format(glm_acc_oos))
 print('real y_0: {0}'.format(y_0))
 print('predict x_0: {0}'.format(res.predict(exog=x_0_with_const)))
 print('predict x_adv_0: {0}'.format(res.predict(exog=x_adv_glm['x_adv_0'])))
@@ -64,8 +72,8 @@ pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0,
 
 lr = linear_model.LogisticRegression(C = 1e12, random_state = 1234)
 lr.fit(X_train, y_train)
-y_pred = lr.predict(X_test)
-lr_acc = metrics.accuracy_score(y_test, y_pred)
+lr_acc_is = lr.score(X = X_train, y = y_train)
+lr_acc_oos = lr.score(X = X_test, y = y_test)
 
 # compare estimates
 lr.coef_.squeeze()
@@ -78,7 +86,8 @@ x_adv_sk_0 = x_adv_sk['x_adv_0'][1:].reshape((1, x_adv_sk['x_adv_0'].shape[0]-1)
 x_adv_sk_star = x_adv_sk['x_adv_star'][1:].reshape((1, x_adv_sk['x_adv_star'].shape[0]-1))
 print('**Unregularized sklearn**')
 print('number of iterations: {0}'.format(lr.n_iter_[0]))
-print('performance: {0}'.format(lr_acc))
+print('accuracy in-sample: {0}'.format(lr_acc_is))
+print('accuracy out-of-sample: {0}'.format(lr_acc_oos))
 print('predict x_0: {0}'.format(lr.predict_proba(x_0)[0,adv_sk.model.classes_==1][0]))
 print('predict x_adv_0: {0}'.format(lr.predict_proba(x_adv_sk_0)[0,adv_sk.model.classes_==1][0]))
 print('predict x_adv_star: {0}'.format(lr.predict_proba(x_adv_sk_star)[0,adv_sk.model.classes_==1][0]))
@@ -91,9 +100,8 @@ pertubations_sk = adv_sk.compute_adversarial_perturbation(x_0, y_0, alpha=ALPHAS
 # L2 regularized sklearn
 lr_l2 = linear_model.LogisticRegression(penalty = 'l2', random_state = 42) # TODO: tune param C?
 lr_l2.fit(X_train, y_train)
-y_pred = lr_l2.predict(X_test)
-lr_l2_acc = metrics.accuracy_score(y_test, y_pred)
-
+lr_l2_acc_is = lr_l2.score(X = X_train, y = y_train)
+lr_l2_acc_oos = lr_l2.score(X = X_test, y = y_test)
 
 adv_skl2 = AdversarialLogistic(lr_l2, lower_bound=0)
 adv_skl2.compute_covariance(X_train, y_train)
@@ -102,7 +110,8 @@ x_adv_skl2_0 = x_adv_skl2['x_adv_0'][1:].reshape((1, x_adv_skl2['x_adv_0'].shape
 x_adv_skl2_star = x_adv_skl2['x_adv_star'][1:].reshape((1, x_adv_skl2['x_adv_star'].shape[0]-1))
 print('**L2-regularized sklearn**')
 print('number of iterations: {0}'.format(lr_l2.n_iter_))
-print('performance: {0}'.format(lr_l2_acc))
+print('accuracy in-sample: {0}'.format(lr_l2_acc_is))
+print('accuracy out-of-sample: {0}'.format(lr_l2_acc_oos))
 print('predict x_0: {0}'.format(lr_l2.predict_proba(x_0)[0,adv_skl2.model.classes_==1][0]))
 print('predict x_adv_0: {0}'.format(lr_l2.predict_proba(x_adv_skl2_0)[0,adv_skl2.model.classes_==1][0]))
 print('predict x_adv_star: {0}'.format(lr_l2.predict_proba(x_adv_skl2_star)[0,adv_skl2.model.classes_==1][0]))
@@ -156,9 +165,54 @@ print(res.summary())
 
 plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
     labels=['GLM', 'Unregularized sklearn', 'L2-regularized sklearn'], 
-    colors=['r', 'orange', 'orchid'], filename='images/spam_intensities_alphas.png')
+    colors=COLORS_MODELS, filename='images/spam_intensities_alphas.png')
 
 plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
     labels=['GLM', 'Unregularized sklearn', 'L2-regularized sklearn'], 
-    colors=['r', 'orange', 'orchid'], ylim=(0.4, 1.7),
+    colors=COLORS_MODELS, ylim=(0.4, 1.7),
     filename='images/spam_intensities_alphas_zoom.png')
+
+# 4. density of lambda_star
+
+#TODO: represent multiple values of alphas
+ALPHA = 0.90
+# TODO: for now, we remove the test observations that are incorrectly classified
+correctly_classified = (((adv_glm.model.predict(X_test_with_const)>0.5) == y_test ) & 
+    ( adv_sk.model.predict(X_test) == y_test ) & 
+    ( adv_skl2.model.predict(X_test) == y_test ) )
+X_test = X_test.loc[correctly_classified,:]
+X_test_with_const = X_test_with_const.loc[correctly_classified,:]
+y_test = y_test.loc[correctly_classified]
+# TODO: viz of density of lamdba star by groups:
+#   - x_0 incorrectly classified by attacker as 1,
+#   - x_0 correctly classified by attacker as 1,
+#   - x_0 incorrectly classified by attacker as 0,
+#   - x_0 correctly classified by attacker as 1.
+
+
+def compute_lambdas_star(adv, X_test, y_test, alpha, label_model):
+    lambdas = []
+    for i in range(0, X_test.shape[0]):
+        x_0 = X_test.iloc[[i]].as_matrix().squeeze()
+        y_0 = y_test.iloc[[i]].squeeze()
+        lambda_star = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, verbose_bounds=False)['lambda_star']
+        lambdas.append(lambda_star)
+    df_lambdas = pd.DataFrame({
+        'lambdas': lambdas,
+        'model': [label_model]*len(lambdas)
+    })
+    return df_lambdas
+
+lambdas_glm = compute_lambdas_star(adv = adv_glm, X_test = X_test_with_const, y_test = y_test, alpha = ALPHA, label_model = 'GLM')
+lambdas_sk = compute_lambdas_star(adv = adv_sk, X_test = X_test, y_test = y_test, alpha = ALPHA, label_model = 'Unregularized sklearn')
+lambdas_skl2 = compute_lambdas_star(adv = adv_skl2, X_test = X_test, y_test = y_test, alpha = ALPHA, label_model = 'L2-regularized sklearn')
+
+# violinplot
+df_lambdas = pd.concat([lambdas_glm, lambdas_sk, lambdas_skl2])
+plt.close()
+fig = plt.figure(figsize=(7, 5), dpi=150)
+sns.set_style("whitegrid")
+plt.ylim((0,6))
+#plt.yscale('log')
+sns.violinplot( x=df_lambdas["model"], y=df_lambdas["lambdas"], palette=COLORS_MODELS)
+plt.show()
