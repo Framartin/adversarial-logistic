@@ -6,6 +6,8 @@ TODO:
 - use one subclass for each model type for cleaner implementation
 - fix bug: handle the case where, for sklearn, if the constant is already on X_train, beta0 is inside model.coef_
 - remove dependance on statsmodels
+- handle the case where the model is wrong (y != pred(x)), but we still want to go away from the decision hyperplane
+(in this case delta is not the projection on the hyperplane, but we can move away in this direction).
 """
 
 import statsmodels.api as sm
@@ -136,6 +138,7 @@ class AdversarialLogistic(object):
         beta_hat = self.beta_hat
         beta_hat_minus0 = self.beta_hat_minus0
         delta = - (x.dot(beta_hat)/sum(beta_hat_minus0**2)) * beta_hat_minus0
+        #import pdb ; pdb.set_trace()
         delta = delta * (1 + overshoot)
         if self.model_has_intercept:
             delta = np.insert(delta, self.idx_beta0, 0) # add back the constant
@@ -222,7 +225,7 @@ class AdversarialLogistic(object):
                 x_adv[x_adv > self.upper_bound] = self.upper_bound
         return x_adv
 
-    def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, verbose=False):
+    def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, verbose=False, verbose_bounds=True):
         """Compute the adversarial perturbation "intensified" to achieve a given missclassification level.
 
         Parameters
@@ -235,6 +238,8 @@ class AdversarialLogistic(object):
             Missclassification level. If a list, pertubations are computed for each float and a list is returned.
         out_bounds : str
             Comportement when the new adversarial example is outside bounds. Can be set to 'clipping' or 'missing' or 'nothing'.
+
+        TODO: add delta option to provide custom adversarial example
         """
 
         x = self.__add_constant(x=x)
@@ -243,9 +248,15 @@ class AdversarialLogistic(object):
         delta = self.compute_orthogonal_projection(x)
         x_adv_0 = x + delta
         # check range of x_adv_0
-        x_adv_0 = self.__check_bounds(x_adv_0, out_bounds)
+        x_adv_0 = self.__check_bounds(x_adv_0, out_bounds, verbose=verbose_bounds)
         # check pred(x_adv_0)
-        assert(np.sign(x_adv_0.dot(self.beta_hat)) != np.sign(y)) # the overshoot should prevent underflow
+        # the overshoot should prevent underflow
+        if y == 1:
+            assert(np.sign(x_adv_0.dot(self.beta_hat)) == -1.0)
+        elif y == 0:
+            assert(np.sign(x_adv_0.dot(self.beta_hat)) == 1.0)
+        else:
+            raise ValueError('y should be 1 or 0.')
 
         if type(alpha) == float:
             alpha = [self.__compute_alpha(alpha, y)]
@@ -306,3 +317,4 @@ def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **k
         plt.show()
     else:
         plt.savefig(filename)
+        plt.close()
