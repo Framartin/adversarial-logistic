@@ -2,12 +2,9 @@
 
 
 TODO:
-- fix __compute_alpha() that doesn't handle propertly the case where y_0=0
 - use one subclass for each model type for cleaner implementation
 - fix bug: handle the case where, for sklearn, if the constant is already on X_train, beta0 is inside model.coef_
 - remove dependance on statsmodels
-- handle the case where the model is wrong (y != pred(x)), but we still want to go away from the decision hyperplane
-(in this case delta is not the projection on the hyperplane, but we can move away in this direction).
 """
 
 import statsmodels.api as sm
@@ -144,14 +141,7 @@ class AdversarialLogistic(object):
             delta = np.insert(delta, self.idx_beta0, 0) # add back the constant
         return delta
 
-    def __compute_alpha(self, alpha, y):
-        """Compute alpha to acomodate for the sign of the perturbation."""
-        if np.sign(y) == 1:
-            return alpha
-        else:
-            return 1-alpha
-
-    def __solve_lambda(self, alpha, x, delta, tol = 1e-6, verbose = False):
+    def __solve_lambda(self, alpha, x, y, delta, tol = 1e-6, verbose = False):
         """Solve the 2nd degree equation for lambda to a given missclassification level.
 
         Parameters
@@ -160,6 +150,8 @@ class AdversarialLogistic(object):
             Missclassification level.
         x : array_like
             1-D array of the example to perturbate.
+        y : int
+            1 or 0 associated to x
         delta : array_like
             1-D array of the adversarial example to intensify.
         tol : float
@@ -167,15 +159,18 @@ class AdversarialLogistic(object):
         verbose : bool
             For debug.
         """
+        # change the value of alpha if y = 0 (this is the only difference between y=1 and y=0)
+        assert(y in [0,1])
+        if y == 0:
+            alpha = 1-alpha
 
         if verbose:
             print('-----------')
         beta_hat = self.beta_hat
-        d = math.sqrt(2)*special.erfinv(2*alpha-1)
-        A = np.outer(beta_hat, beta_hat) - d**2 * self.cov_params 
-        a = delta.dot(A).dot(delta)
-        b = x.dot(A).dot(delta) + delta.dot(A).dot(x)
-        c = x.dot(A).dot(x)
+        A = np.outer(beta_hat, beta_hat) - 2 * special.erfinv(2*alpha-1)**2 * self.cov_params 
+        a = delta.T.dot(A).dot(delta)
+        b = x.T.dot(A).dot(delta) + delta.T.dot(A).dot(x)
+        c = x.T.dot(A).dot(x)
         if verbose:
             print('value a: {0}'.format(a))
         DeltaEq2 = b**2 - 4*a*c
@@ -192,8 +187,9 @@ class AdversarialLogistic(object):
             lambda2 = (-b + DeltaEq2**0.5) / (2*a)
             if verbose:
                 print('Two solutions: {0}, {1}'.format(lambda2, lambda1))
-            for lambda_star in [lambda1, lambda2]: #[lambda1, lambda2]: # TODO: verifier que resiste a l'ordre
+            for lambda_star in [lambda1, lambda2]:
                 x_adv = x + lambda_star*delta
+                d = math.sqrt(2)*special.erfinv(2*alpha-1)
                 eq = abs(x_adv.dot(beta_hat) + d*math.sqrt( x_adv.T.dot(self.cov_params).dot(x_adv)))
                 if verbose:
                     print('Value eq: {0}'.format(eq))
@@ -237,13 +233,12 @@ class AdversarialLogistic(object):
         # compute the estimation of the mean and variance of the normal random variable x^T beta_hat
         mu = x.dot(self.beta_hat).squeeze()
         sigma = x.T.dot(self.cov_params).dot(x).squeeze()
-        assert(type(mu) is float and type(sigma) is float)
+        assert(type(mu) in [np.float64, float] and type(sigma) in [np.float64, float])
         proba_xbeta_inf_0 = stats.norm.cdf(0, loc=mu, scale=sigma)
         if y == 0:
             return proba_xbeta_inf_0
-        elif y==1:
-            proba_xbeta_sup_0 = 1-proba # probability that x^T beta > 0
-        return proba
+        elif y == 1:
+            return 1-proba_xbeta_inf_0 # probability that x^T beta > 0
 
     def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, verbose=False, verbose_bounds=True):
         """Compute the adversarial perturbation "intensified" to achieve a given missclassification level.
@@ -266,34 +261,26 @@ class AdversarialLogistic(object):
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
         assert(y in [0,1])
-        x_correctly_predicted = (y_0 == (x.dot(self.beta_hat) >= 0)) # is x correctly predicted by the model?
+        x_correctly_predicted = ((x.dot(self.beta_hat) > 0) == y) # is x correctly predicted by the model?
         delta = self.compute_orthogonal_projection(x)
-        if x_correctly_predicted:
-            pass
-        else:    
-            delta = -delta # the perturbation moves away from the decision hyperplane
-        x_adv_0 = x + delta
         # check range of x_adv_0
         if x_correctly_predicted:
+            x_adv_0 = x + delta
             x_adv_0 = self.__check_bounds(x_adv_0, out_bounds, verbose=verbose_bounds)
         else:
+            x_adv_0 = x - delta # the perturbation moves away from the decision hyperplane
             pass # don't check, because x_adv_0 is "fictional". Only delta will be used to set the direction to move.
         # check pred(x_adv_0)
         # the overshoot should prevent underflow
-        if y == 1:
-            assert(np.sign(x_adv_0.dot(self.beta_hat)) == -1.0)
-        elif y == 0:
-            assert(np.sign(x_adv_0.dot(self.beta_hat)) == 1.0)
-        else:
-            raise ValueError('y should be 1 or 0.')
+        assert((x_adv_0.dot(self.beta_hat) > 0) != y)
 
-        #TODO: change this. This is not good. Current implementation breaks the __compute_probability_predx_equals_y()
         if type(alpha) == float:
-            alpha = [self.__compute_alpha(alpha, y)]
+            alphas = [alpha]
         elif type(alpha) == list:
-            alpha = [self.__compute_alpha(a, y) for a in alpha]
+            alphas = alpha
         else:
             raise Exception('Invalid alpha parameter')
+        del alpha
 
         # compute (only 1 time) P[pred(x)=y]
         if x_correctly_predicted:
@@ -302,21 +289,28 @@ class AdversarialLogistic(object):
             proba_predx_equals_y = self.__compute_probability_predx_equals_y(x, y)
 
         results = []
-        for a in alpha:
-            if (not x_correctly_predicted) and (proba_predx_equals_y >= alpha):
+        for a in alphas:
+            if (not x_correctly_predicted) and (proba_predx_equals_y >= a):
                 # x already ok, ie. P[pred(x)=y] >= alpha 
+                x_adv_star = x
                 result_dict = {'alpha': a, 'lambda_star': 0, 'x_adv_star': x, 'x_adv_0': None}
             else:
-                lambda_star = self.__solve_lambda(a, x, delta, tol=tol, verbose=verbose)
+                lambda_star = self.__solve_lambda(alpha=a, x=x, y=y, delta=delta, tol=tol, verbose=verbose)
                 x_adv_star = x + lambda_star * delta
                 # check range of x_adv_star
-                x_adv_star = self.__check_bounds(x_adv_star, out_bounds, verbose=verbose)
-                # check pred(x_adv_star)
-                if a > 0.5 + tol:
-                    assert(np.sign(x_adv_star.dot(self.beta_hat)) != np.sign(y))
+                x_adv_star = self.__check_bounds(x_adv_star, out_bounds, verbose=verbose)                    
                 result_dict = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
-                # return dict if only one alpha
-            if len(alpha) == 1:
+            # check pred(x_adv_star)
+            if x_correctly_predicted:
+                if a > 0.5 + tol:
+                    assert((x_adv_star.dot(self.beta_hat) > 0) != y)
+                elif a < 0.5 - tol:
+                    assert((x_adv_star.dot(self.beta_hat) > 0) == y)
+            else:
+                    assert((x_adv_star.dot(self.beta_hat) > 0) != y)
+
+            # return dict if only one alpha
+            if len(alphas) == 1:
                return result_dict
             # return list of dicts if several alphas
             else:
