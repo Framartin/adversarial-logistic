@@ -5,12 +5,17 @@ This script runs a logistic regression to classify images as cat or dog,
 and computes adversarial images according to different confidence levels.
 
 Data and details are available at: https://www.kaggle.com/c/dogs-vs-cats/data
+
+TODO:
+- plot lambda vs alpha for the example that we plot
 """
 
 import numpy as np
 from sklearn import linear_model
+from sklearn.model_selection import train_test_split
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy import misc
 import os
 import glob
@@ -21,9 +26,10 @@ TRAIN_DIR = 'data/cats/data64/train'
 TEST_DIR = 'data/cats/data64/test'
 # cats and dogs who want to change their identities:
 # squared images without gray bands
-IDS_TEST_EXAMPLES = [('dog', 2), ('cat', 5), ('dog', 21), ('cat', 28), ('cat', 45), ('cat', 58), ('cat', 90)]
+#IDS_TEST_EXAMPLES = [('dog', 2), ('cat', 5), ('dog', 21), ('cat', 28), ('cat', 45), ('cat', 58), ('cat', 90)]
 # values of alphas to compute adversarial examples
 ALPHAS = [0.75, 0.9, 0.95]
+COLORS_MODELS = 'orchid'
 
 # TODO: account for the impossibility to perturbate gray bars
 
@@ -41,7 +47,6 @@ def import_train_images():
     for image_path in train_dogs:
         images.append(misc.imread(image_path, mode='RGB'))
     X = np.asarray(images)
-    #print(images[1].dtype)
     print('Imported train: {0} cats and {1} dogs.'.format(len(train_cats), len(train_dogs)))
     return X, y
 
@@ -55,30 +60,51 @@ def import_test_images():
     print('Imported test: {0}.'.format(len(images)))
     return X, y
 
-def print_images(X, title =''):
+def print_image(X, title =''):
     fig, ax = plt.subplots()
     ax.imshow(X)
     ax.set_title(title)
     plt.show()
 
+def image2vector(x):
+    return x.reshape(x.shape[0], -1).squeeze()
 
-X_train, y_train = import_train_images()
-X_test, y_test = import_test_images()
+def vector2image(x):
+    return x.reshape(-1, 64, 64, 3).squeeze()
+
+def save_obj(x, filename = 'obj.pkl'):
+    with open(filename, 'wb') as output:
+        pickle.dump(x, output, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(filename):
+    with open(filename, 'rb') as input:
+        adv = pickle.load(input)
+    return adv
+
+
+X, y = import_train_images()
+
+# image2vector
+X = image2vector(X)
+y = y.T
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.30, random_state=42, stratify=y)
+del X, y # avoid bugs
+
+#X_test2, y_test2 = import_test_images()
+import pdb ; pdb.set_trace()
 
 # print examples
-print_images(X_train[1], 'Train Cat Example')
-print_images(X_train[-1], 'Train Dog Example')
-print_images(X_test[1], 'Test Example')
+print_image(vector2image(X_train[1,:]), 'Train Cat Example')
+print_image(vector2image(X_train[0,:]), 'Train Dog Example')
+print_image(vector2image(X_test[0,:]), 'Test Example')
 
 # save a nice cat that wants to becomes a dog
 #x_0_origin = X[4,:].squeeze()
 #x_0 = x_0_origin.reshape(1, -1)
 #y_0 = y[4,:].squeeze()
-#print_images(x_0_origin)
-
-# image2vector train
-X_train = X_train.reshape(X_train.shape[0], -1).squeeze()
-y_train = y_train.T
+#print_image(x_0_origin)
 
 # we don't train a statsmodels GLM, because data are too heavy for its implentation.
 
@@ -96,6 +122,11 @@ del lr_l2_CV
 lr_l2 = linear_model.LogisticRegression(penalty = 'l2', random_state = 42, C=bestC)
 lr_l2.fit(X_train, y_train)
 
+lr_l2_acc_is = lr_l2.score(X = X_train, y = y_train)
+lr_l2_acc_oos = lr_l2.score(X = X_test, y = y_test)
+print('Accuracy in-sample: {0}'.format(lr_l2_acc_is))
+print('Accuracy out-of-sample: {0}'.format(lr_l2_acc_oos))
+
 
 # Perturbate the cat power
 
@@ -105,24 +136,30 @@ print(adv.beta_hat.shape)
 #adv.compute_covariance(X_train, y_train)
 
 # save adv for latter reuse:
-#with open('adv.pkl', 'wb') as output:
-#    pickle.dump(adv, output, pickle.HIGHEST_PROTOCOL)
+#save_obj(adv, filename = 'adv.pkl')
 
 # load previously saved adv
-with open('adv.pkl', 'rb') as input:
-    adv = pickle.load(input)
+adv = load_obj('adv.pkl')
 
 #TODO:
 #adv.plot_lambda_vs_alpha(x_0, y_0)
 
-for index, test_image in enumerate(X_test):
-    x_0 = test_image.reshape(test_image.shape[0], -1).squeeze()
-    y_0 = y_test[index]
+lambds = [] # list of list each containing the values of lambdas associated with ALPHAS
+
+for index, x_0 in enumerate(X_test):
+    y_0 = y_test[index].squeeze()
     pred_x_0 = lr_l2.predict(x_0)
-    if (pred_x_0 != y_test[index]):
+    if (pred_x_0 != y_0):
+        #TODO: better handeling of this case
         print('Test example #{0} is not predicted correctly by the model({1} vs {2}). Ignored.'.format(index, pred_x_0, y_0))
         continue
-    x_adv = [adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping') for alpha in ALPHAS]
+    x_adv = []
+    lambds_x_0 = []
+    for alpha in ALPHAS:
+        adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping')
+        x_adv.append(adv)
+        lambds_x_0.append(adv['lambda_star'])
+
     print('Original test example #{0} predicted as: {1}'.format(index, lr_l2.predict(x_0)[0]))
     # plot the images
     f, axarr = plt.subplots(1+len(ALPHAS),2)
@@ -136,4 +173,21 @@ for index, test_image in enumerate(X_test):
         delta_star_plot = np.abs(x_adv[i]['x_adv_star'][1:].reshape(64,64,3) - x_0.reshape(64,64,3))
         axarr[1+i,1].imshow(delta_star_plot)
         axarr[1+i,1].set_title('Adversarial Perturbation (α = {0})'.format(alpha))
-    plt.show()
+    plt.savefig('images/adv_picture_'+str(index)+'.png')
+    plt.close()
+
+# plot the distribution of lamdbas with respect to alphas
+lambds_list = []
+alphas_list = []
+for i in lambds:
+    lambds_list.append(i)
+    alphas_list.append(ALPHAS)
+df_lambds = pd.DataFrame({'alpha': alphas_list, 'lambd': lambds_list})
+
+fig = plt.figure(figsize=(7, 5), dpi=150)
+sns.set_style("whitegrid")
+sns.violinplot( x=df_lambds["alpha"], y=df_lambds["lambd"], palette="Blues")
+plt.xlabel('Missclassification level (α)')
+plt.ylabel('Intensity of the pertubation (δ)')
+plt.title('Pertubations intensities of the test examples')
+plt.savefig('cats_violinplot_lamdbas.png')
