@@ -85,19 +85,19 @@ def load_obj(filename):
         adv = pickle.load(input)
     return adv
 
-def x_adv2jpg(x_0, x_adv, filename):
+def x_adv_list2jpg(x_0, x_adv_list, filename):
     """
-    Save an image containing all the adversarial examples in x_adv.
+    Save an image containing all the adversarial examples in x_adv_list.
     """
     f, axarr = plt.subplots(1+len(ALPHAS),2)
     axarr[0,0].imshow(vector2image(x_0))
     axarr[0,0].set_title('Original Example')
-    axarr[0,1].imshow(vector2image(x_adv[0]['x_adv_0']))
+    axarr[0,1].imshow(vector2image(x_adv_list[0]['x_adv_0']))
     axarr[0,1].set_title('Orthogonal Projection (α = 0.5)')
     for i, alpha in enumerate(ALPHAS):
-        axarr[1+i,0].imshow(vector2image(x_adv[i]['x_adv_star']))
+        axarr[1+i,0].imshow(vector2image(x_adv_list[i]['x_adv_star']))
         axarr[1+i,0].set_title('Adversarial Example (α = {0})'.format(alpha))
-        delta_star_plot = np.abs(vector2image(x_adv[i]['x_adv_star']) - vector2image(x_0))
+        delta_star_plot = np.abs(vector2image(x_adv_list[i]['x_adv_star']) - vector2image(x_0))
         axarr[1+i,1].imshow(delta_star_plot)
         axarr[1+i,1].set_title('Adversarial Perturbation (α = {0})'.format(alpha))
     plt.savefig(filename)
@@ -190,13 +190,13 @@ for index, x_0 in enumerate(X_test2):
     y_0 = y_test[index].squeeze()
     pred_x_0 = lr_l2.predict(x_0)
 
-    x_adv = []
+    x_adv_list = []
     for alpha in alphas_list:
-        adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, 
+        x_adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, 
             out_bounds='clipping', verbose_bounds=False)['lambda_star']
-        x_adv.append(adv)
+        x_adv_list.append(x_adv)
 
-    plot_intensity_vs_level(x_adv, labels = ['L2-regularized sklearn'],
+    plot_intensity_vs_level(x_adv_list, labels = ['L2-regularized sklearn'],
         colors = COLORS_MODELS, ylim=None, filename='images/cats_intensity_level_x_test2_'+str(i)+'.jpg', **kwargs)
 
 del alphas_list
@@ -219,19 +219,19 @@ for index, x_0 in enumerate(X_test):
     y_0 = y_test[index].squeeze()
     pred_x_0 = lr_l2.predict(x_0)
 
-    x_adv = []
+    x_adv_list = []
     for alpha in ALPHAS:
-        adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping')
-        x_adv.append(adv)
-        lambds_list.append(adv['lambda_star'])
+        x_adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping')
+        x_adv_list.append(x_adv)
+        lambds_list.append(x_adv['lambda_star'])
         alphas_list.append(alpha)
 
-    # save x_adv
-    save_obj(x_adv, filename = 'obj/x_adv/test_'+str(index)+'.pkl')
+    # save x_adv_list
+    save_obj(x_adv_list, filename = 'obj/x_adv/test_'+str(index)+'.pkl')
 
     print('Original test example #{0} predicted as: {1}'.format(index, pred_x_0[0]))
     # plot and save the images
-    x_adv2jpg(x_0, x_adv, filename='images/cats/cats_adv_picture_'+str(index)+'.jpg')
+    x_adv_list2jpg(x_0, x_adv_list, filename='images/cats/cats_adv_picture_'+str(index)+'.jpg')
 
 
 # plot the distribution of lamdbas with respect to alphas
