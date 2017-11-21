@@ -134,24 +134,25 @@ if DEBUG:
 
 # we don't train a statsmodels GLM, because data are too heavy for its implentation.
 
-# sklearn LR with L2 regularization
-# search for the best C hyperparameter
-lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', solver='sag', random_state = 42, n_jobs=-1)
-lr_l2_CV.fit(X_train, y_train)
-bestC = lr_l2_CV.C_[0]
-print('Best C found: {0}'.format(bestC))
-del lr_l2_CV
+if not os.path.isfile('obj/adv.pkl'):
+    # sklearn LR with L2 regularization
+    # search for the best C hyperparameter
+    lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', solver='sag', random_state = 42, n_jobs=-1)
+    lr_l2_CV.fit(X_train, y_train)
+    bestC = lr_l2_CV.C_[0]
+    print('Best C found: {0}'.format(bestC))
+    del lr_l2_CV
 
-# retrain LR with the best C
-# this is the same than above, but currently adversarialLogistic 
-# doesn't support linear_model.LogisticRegressionCV
-lr_l2 = linear_model.LogisticRegression(penalty = 'l2', solver='sag', random_state = 42, C=bestC, n_jobs=-1)
-lr_l2.fit(X_train, y_train)
+    # retrain LR with the best C
+    # this is the same than above, but currently adversarialLogistic 
+    # doesn't support linear_model.LogisticRegressionCV
+    lr_l2 = linear_model.LogisticRegression(penalty = 'l2', solver='sag', random_state = 42, C=bestC, n_jobs=-1)
+    lr_l2.fit(X_train, y_train)
 
-lr_l2_acc_is = lr_l2.score(X = X_train, y = y_train)
-lr_l2_acc_oos = lr_l2.score(X = X_test, y = y_test)
-print('Accuracy in-sample: {0}'.format(lr_l2_acc_is))
-print('Accuracy out-of-sample: {0}'.format(lr_l2_acc_oos))
+    lr_l2_acc_is = lr_l2.score(X = X_train, y = y_train)
+    lr_l2_acc_oos = lr_l2.score(X = X_test, y = y_test)
+    print('Accuracy in-sample: {0}'.format(lr_l2_acc_is))
+    print('Accuracy out-of-sample: {0}'.format(lr_l2_acc_oos))
 
 
 #------------------------------------
@@ -160,15 +161,16 @@ print('Accuracy out-of-sample: {0}'.format(lr_l2_acc_oos))
 
 # Perturbate the cat power
 
-adv = AdversarialLogistic(lr_l2, lower_bound=0, upper_bound=255)
 
 if os.path.isfile('obj/adv.pkl'):
     # load previously saved adv
     adv = load_obj('adv.pkl')
 else:
+    adv = AdversarialLogistic(lr_l2, lower_bound=0, upper_bound=255)
+    
     # WARNING: heavy on RAM
     adv.compute_covariance(X_train, y_train)
-
+    
     # save adv for latter reuse:
     save_obj(adv, filename = 'obj/adv.pkl')
 
