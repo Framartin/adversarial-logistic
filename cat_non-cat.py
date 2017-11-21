@@ -162,14 +162,16 @@ print('Accuracy out-of-sample: {0}'.format(lr_l2_acc_oos))
 
 adv = AdversarialLogistic(lr_l2, lower_bound=0, upper_bound=255)
 
-# WARNING: heavy on RAM
-adv.compute_covariance(X_train, y_train)
+if os.path.isfile('obj/adv.pkl'):
+    # load previously saved adv
+    adv = load_obj('adv.pkl')
+else:
+    # WARNING: heavy on RAM
+    adv.compute_covariance(X_train, y_train)
 
-# save adv for latter reuse:
-save_obj(adv, filename = 'obj/adv.pkl')
+    # save adv for latter reuse:
+    save_obj(adv, filename = 'obj/adv.pkl')
 
-# load previously saved adv
-#adv = load_obj('adv.pkl')
 
 
 #---------------------------------------------
