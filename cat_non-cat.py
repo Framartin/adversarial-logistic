@@ -59,7 +59,6 @@ def import_train_images():
     # image2vector
     X = image2vector(X)
     y = y.T
-    print(y.shape)
     print('Imported train: {0} cats and {1} dogs.'.format(len(train_cats), len(train_dogs)))
     return X, y
 
@@ -74,7 +73,6 @@ def import_test_images():
     # image2vector
     X = image2vector(X)
     y = y.T
-    print(y.shape)
     print('Imported test: {0} images.'.format(len(images)))
     return X, y
 
@@ -170,7 +168,7 @@ else:
     
     # WARNING: heavy on RAM
     adv.compute_covariance(X_train, y_train)
-    
+
     # save adv for latter reuse:
     save_obj(adv, filename = 'obj/adv.pkl')
 
@@ -187,6 +185,7 @@ print('Compute Adversarial Images for X_test2...')
 alphas_list = np.arange(0.001, 0.999, 0.001).tolist()
 
 for index, x_0 in enumerate(X_test2):
+    x_0 = x_0.reshape(1, -1) # shape: (12288,) -> (12288,1)
     y_0 = y_test[index].squeeze()
     pred_x_0 = lr_l2.predict(x_0)
 
@@ -215,6 +214,7 @@ print('Compute Adversarial Images for X_test...')
 for index, x_0 in enumerate(X_test):
     if (index % 50 == 0):
         print('  ...test image #'+str(index))
+    x_0 = x_0.reshape(1, -1) # shape: (12288,) -> (12288,1)
     y_0 = y_test[index].squeeze()
     pred_x_0 = lr_l2.predict(x_0)
 
