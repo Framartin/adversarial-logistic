@@ -263,16 +263,15 @@ class AdversarialLogistic(object):
         assert(y in [0,1])
         x_correctly_predicted = ((x.dot(self.beta_hat) > 0) == y) # is x correctly predicted by the model?
         delta = self.compute_orthogonal_projection(x)
-        # check range of x_adv_0
         if x_correctly_predicted:
             x_adv_0 = x + delta
-            x_adv_0 = self.__check_bounds(x_adv_0, out_bounds, verbose=verbose_bounds)
         else:
             x_adv_0 = x - delta # the perturbation moves away from the decision hyperplane
-            pass # don't check, because x_adv_0 is "fictional". Only delta will be used to set the direction to move.
         # check pred(x_adv_0)
         # the overshoot should prevent underflow
         assert((x_adv_0.dot(self.beta_hat) > 0) != y)
+        # check range of x_adv_0
+        x_adv_0 = self.__check_bounds(x_adv_0, out_bounds, verbose=verbose_bounds)
 
         if type(alpha) == float:
             alphas = [alpha]
@@ -297,8 +296,6 @@ class AdversarialLogistic(object):
             else:
                 lambda_star = self.__solve_lambda(alpha=a, x=x, y=y, delta=delta, tol=tol, verbose=verbose)
                 x_adv_star = x + lambda_star * delta
-                # check range of x_adv_star
-                x_adv_star = self.__check_bounds(x_adv_star, out_bounds, verbose=verbose)                    
                 result_dict = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
             # check pred(x_adv_star)
             if x_correctly_predicted:
@@ -308,7 +305,8 @@ class AdversarialLogistic(object):
                     assert((x_adv_star.dot(self.beta_hat) > 0) == y)
             else:
                     assert((x_adv_star.dot(self.beta_hat) > 0) != y)
-
+            # check range of x_adv_star
+            result_dict['x_adv_star'] = self.__check_bounds(result_dict['x_adv_star'], out_bounds, verbose=verbose)
             # return dict if only one alpha
             if len(alphas) == 1:
                return result_dict
