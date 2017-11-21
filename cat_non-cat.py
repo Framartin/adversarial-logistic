@@ -162,7 +162,7 @@ if not os.path.isfile('obj/adv.pkl'):
 
 if os.path.isfile('obj/adv.pkl'):
     # load previously saved adv
-    adv = load_obj('adv.pkl')
+    adv = load_obj('obj/adv.pkl')
 else:
     adv = AdversarialLogistic(lr_l2, lower_bound=0, upper_bound=255)
     
