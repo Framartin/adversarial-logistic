@@ -136,7 +136,7 @@ if DEBUG:
 
 # sklearn LR with L2 regularization
 # search for the best C hyperparameter
-lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', random_state = 42, n_jobs=-1)
+lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', solver='sag', random_state = 42, n_jobs=-1)
 lr_l2_CV.fit(X_train, y_train)
 bestC = lr_l2_CV.C_[0]
 print('Best C found: {0}'.format(bestC))
@@ -145,7 +145,7 @@ del lr_l2_CV
 # retrain LR with the best C
 # this is the same than above, but currently adversarialLogistic 
 # doesn't support linear_model.LogisticRegressionCV
-lr_l2 = linear_model.LogisticRegression(penalty = 'l2', random_state = 42, C=bestC, n_jobs=-1)
+lr_l2 = linear_model.LogisticRegression(penalty = 'l2', solver='sag', random_state = 42, C=bestC, n_jobs=-1)
 lr_l2.fit(X_train, y_train)
 
 lr_l2_acc_is = lr_l2.score(X = X_train, y = y_train)
