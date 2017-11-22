@@ -213,7 +213,7 @@ for index, x_0 in enumerate(X_test2):
     x_adv_list = []
     for alpha in alphas_list:
         x_adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, 
-            out_bounds='clipping', verbose_bounds=False)['lambda_star']
+            out_bounds='clipping', verbose_bounds=False)
         x_adv_list.append(x_adv)
 
     plot_intensity_vs_level(x_adv_list, labels = ['L2-regularized sklearn'],
