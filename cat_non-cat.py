@@ -40,7 +40,13 @@ def image2vector(x):
     return x.reshape(x.shape[0], -1).squeeze()
 
 def vector2image(x):
-    return x.reshape(-1, 64, 64, 3).squeeze()
+    if x.shape[-1] == 64*64*3+1:
+        # contains the constant
+        assert(x[0]==1.0)
+        return x[1:].reshape(-1, 64, 64, 3).squeeze()
+    else:
+        return x.reshape(-1, 64, 64, 3).squeeze()
+
 
 def import_train_images():
     train_cats = sorted(glob.glob(os.path.join(TRAIN_DIR, 'cat*.jpg')))
@@ -90,7 +96,9 @@ def x_adv_list2png(x_0, x_adv_list, filename):
     """
     Save an image containing all the adversarial examples in x_adv_list.
     """
-    f, axarr = plt.subplots(1+len(ALPHAS),2)
+    f, axarr = plt.subplots(1+len(ALPHAS),2, figsize=(7, 9), dpi=150)
+    axarr.set_xticks([])
+    axarr.set_yticks([])
     axarr[0,0].imshow(vector2image(x_0))
     axarr[0,0].set_title('Original Example')
     axarr[0,1].imshow(vector2image(x_adv_list[0]['x_adv_0']))
