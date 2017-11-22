@@ -304,7 +304,7 @@ class AdversarialLogistic(object):
                 elif a < 0.5 - tol:
                     assert((x_adv_star.dot(self.beta_hat) > 0) == y)
             else:
-                if a > 0.5 + tol
+                if a > 0.5 + tol:
                     assert((x_adv_star.dot(self.beta_hat) > 0) != y)
                 else:
                     # we don't know the prediction of the attacker model
