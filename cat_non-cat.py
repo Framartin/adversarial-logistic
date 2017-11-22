@@ -18,6 +18,7 @@ import os
 import glob
 import pickle
 from adversarialLogistic import AdversarialLogistic
+from adversarialLogistic import plot_intensity_vs_level
 
 TRAIN_DIR = 'data/cats/data64/train'
 TEST_DIR = 'data/cats/data64/test'
@@ -26,7 +27,7 @@ TEST_DIR = 'data/cats/data64/test'
 IDS_TEST2_EXAMPLES = [('dog', 2), ('cat', 5), ('dog', 21), ('cat', 28), ('cat', 45), ('cat', 58), ('cat', 90)]
 # values of alphas to compute adversarial examples
 ALPHAS = [0.75, 0.9, 0.95]
-COLORS_MODELS = 'orchid'
+COLORS_MODELS = ['orchid']
 DEBUG = False
 
 def print_image(X, title =''):
@@ -85,7 +86,7 @@ def load_obj(filename):
         adv = pickle.load(input)
     return adv
 
-def x_adv_list2jpg(x_0, x_adv_list, filename):
+def x_adv_list2png(x_0, x_adv_list, filename):
     """
     Save an image containing all the adversarial examples in x_adv_list.
     """
@@ -159,7 +160,6 @@ if not os.path.isfile('obj/adv.pkl'):
 
 # Perturbate the cat power
 
-
 if os.path.isfile('obj/adv.pkl'):
     # load previously saved adv
     adv = load_obj('obj/adv.pkl')
@@ -172,7 +172,6 @@ else:
 
     # save adv for latter reuse:
     save_obj(adv, filename = 'obj/adv.pkl')
-
 
 
 #---------------------------------------------
@@ -190,6 +189,20 @@ for index, x_0 in enumerate(X_test2):
     y_0 = y_test[index].squeeze()
     pred_x_0 = lr_l2.predict(x_0)
 
+    print('Test2 example #{0} predicted as: {1}'.format(index, pred_x_0[0]))
+    # save adversarial images
+    x_adv_list = []
+    for alpha in ALPHAS:
+        x_adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping')
+        x_adv_list.append(x_adv)
+
+    # save x_adv_list
+    save_obj(x_adv_list, filename = 'obj/x_adv/test2_'+str(index)+'.pkl')
+
+    # plot and save the images
+    x_adv_list2png(x_0, x_adv_list, filename='images/cats/test2/adv_picture_'+str(index)+'.png')
+
+    # plot intensity versus level
     x_adv_list = []
     for alpha in alphas_list:
         x_adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, 
@@ -197,10 +210,11 @@ for index, x_0 in enumerate(X_test2):
         x_adv_list.append(x_adv)
 
     plot_intensity_vs_level(x_adv_list, labels = ['L2-regularized sklearn'],
-        colors = COLORS_MODELS, ylim=None, filename='images/cats_intensity_level_x_test2_'+str(i)+'.jpg', **kwargs)
+        colors = COLORS_MODELS, filename='images/cats_intensity_level_x_test2_'+str(i)+'.png')
 
 del alphas_list
 
+#TODO: save adv images in png
 
 #-------------------------------------------
 # V - Compute Adversarial Images for X_test 
@@ -229,9 +243,9 @@ for index, x_0 in enumerate(X_test):
     # save x_adv_list
     save_obj(x_adv_list, filename = 'obj/x_adv/test_'+str(index)+'.pkl')
 
-    print('Original test example #{0} predicted as: {1}'.format(index, pred_x_0[0]))
+    print('Test example #{0} predicted as: {1}'.format(index, pred_x_0[0]))
     # plot and save the images
-    x_adv_list2jpg(x_0, x_adv_list, filename='images/cats/cats_adv_picture_'+str(index)+'.jpg')
+    x_adv_list2png(x_0, x_adv_list, filename='images/cats/test/adv_picture_'+str(index)+'.png')
 
 
 # plot the distribution of lamdbas with respect to alphas
