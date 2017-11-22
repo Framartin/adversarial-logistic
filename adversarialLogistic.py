@@ -304,7 +304,11 @@ class AdversarialLogistic(object):
                 elif a < 0.5 - tol:
                     assert((x_adv_star.dot(self.beta_hat) > 0) == y)
             else:
+                if a > 0.5 + tol
                     assert((x_adv_star.dot(self.beta_hat) > 0) != y)
+                else:
+                    # we don't know the prediction of the attacker model
+                    pass
             # check range of x_adv_star
             result_dict['x_adv_star'] = self.__check_bounds(result_dict['x_adv_star'], out_bounds, verbose=verbose)
             # return dict if only one alpha
