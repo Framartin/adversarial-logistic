@@ -217,7 +217,7 @@ for index, x_0 in enumerate(X_test2):
         x_adv_list.append(x_adv)
 
     plot_intensity_vs_level(x_adv_list, labels = ['L2-regularized sklearn'],
-        colors = COLORS_MODELS, filename='images/cats_intensity_level_x_test2_'+str(i)+'.png')
+        colors = COLORS_MODELS, filename='images/cats_intensity_level_x_test2_'+str(index)+'.png')
 
 del alphas_list
 
