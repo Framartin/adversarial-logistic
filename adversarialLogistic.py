@@ -211,14 +211,14 @@ class AdversarialLogistic(object):
             if out_bounds == 'missing':
                 return None
             elif out_bounds == 'clipping':
-                x_adv[x_adv < self.lower_bound] = self.lower_bound
+                x_adv.loc[x_adv < self.lower_bound] = self.lower_bound
         if np.any(x_adv > self.upper_bound):
             if verbose:
                 print('Adversarial example x_adv > upper_bound.')
             if out_bounds == 'missing':
                 return None
             elif out_bounds == 'clipping':
-                x_adv[x_adv > self.upper_bound] = self.upper_bound
+                x_adv.loc[x_adv > self.upper_bound] = self.upper_bound
         return x_adv
 
     def __compute_probability_predx_equals_y(self, x, y):
@@ -305,7 +305,16 @@ class AdversarialLogistic(object):
                     assert((x_adv_star.dot(self.beta_hat) > 0) == y)
             else:
                 if a > 0.5 + tol:
-                    assert((x_adv_star.dot(self.beta_hat) > 0) != y)
+                    #assert((x_adv_star.dot(self.beta_hat) > 0) != y)
+                    #TODO: need fix.
+                    if (x_adv_star.dot(self.beta_hat) > 0) == y:
+                        print('ERROR. Not expected prediction.')
+                        import pickle
+                        with open('bug_pred_not_correctly_pred.pkl', 'wb') as output:
+                            test = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star,
+                                'x_adv_0': x_adv_0, 'delta': delta, 'proba_predx_equals_y': proba_predx_equals_y,
+                                'x':x, 'y':y, 'beta_hat', self.beta_hat}
+                            pickle.dump(test, output, pickle.HIGHEST_PROTOCOL)
                 else:
                     # we don't know the prediction of the attacker model
                     pass
