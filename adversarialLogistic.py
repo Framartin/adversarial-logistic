@@ -211,14 +211,14 @@ class AdversarialLogistic(object):
             if out_bounds == 'missing':
                 return None
             elif out_bounds == 'clipping':
-                x_adv.loc[x_adv < self.lower_bound] = self.lower_bound
+                x_adv[x_adv < self.lower_bound] = self.lower_bound
         if np.any(x_adv > self.upper_bound):
             if verbose:
                 print('Adversarial example x_adv > upper_bound.')
             if out_bounds == 'missing':
                 return None
             elif out_bounds == 'clipping':
-                x_adv.loc[x_adv > self.upper_bound] = self.upper_bound
+                x_adv[x_adv > self.upper_bound] = self.upper_bound
         return x_adv
 
     def __compute_probability_predx_equals_y(self, x, y):
