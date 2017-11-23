@@ -43,9 +43,9 @@ def vector2image(x):
     if x.shape[-1] == 64*64*3+1:
         # contains the constant
         assert(x[0]==1.0)
-        return x[1:].reshape(-1, 64, 64, 3).squeeze()
+        return x[1:].reshape(-1, 64, 64, 3).squeeze().astype(np.uint8)
     else:
-        return x.reshape(-1, 64, 64, 3).squeeze()
+        return x.reshape(-1, 64, 64, 3).squeeze().astype(np.uint8)
 
 
 def import_train_images():
@@ -221,7 +221,6 @@ for index, x_0 in enumerate(X_test2):
 
 del alphas_list
 
-#TODO: save adv images in png
 
 #-------------------------------------------
 # V - Compute Adversarial Images for X_test 
