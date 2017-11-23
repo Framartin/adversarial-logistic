@@ -104,7 +104,7 @@ def x_adv_list2png(x_0, x_adv_list, filename):
     for i, alpha in enumerate(ALPHAS):
         axarr[1+i,0].imshow(vector2image(x_adv_list[i]['x_adv_star']))
         axarr[1+i,0].set_title('Adversarial Example (α = {0})'.format(alpha))
-        delta_star_plot = np.abs(vector2image(x_adv_list[i]['x_adv_star']) - vector2image(x_0))
+        delta_star_plot = np.abs(vector2image(x_adv_list[i]['x_adv_star']) - vector2image(x_0)).astype(np.uint8)
         axarr[1+i,1].imshow(delta_star_plot)
         axarr[1+i,1].set_title('Adversarial Perturbation (α = {0})'.format(alpha))
     f.tight_layout()
