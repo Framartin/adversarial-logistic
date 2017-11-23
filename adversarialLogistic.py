@@ -313,7 +313,7 @@ class AdversarialLogistic(object):
                         with open('bug_pred_not_correctly_pred.pkl', 'wb') as output:
                             test = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star,
                                 'x_adv_0': x_adv_0, 'delta': delta, 'proba_predx_equals_y': proba_predx_equals_y,
-                                'x':x, 'y':y, 'beta_hat', self.beta_hat}
+                                'x':x, 'y':y, 'beta_hat': self.beta_hat}
                             pickle.dump(test, output, pickle.HIGHEST_PROTOCOL)
                 else:
                     # we don't know the prediction of the attacker model
