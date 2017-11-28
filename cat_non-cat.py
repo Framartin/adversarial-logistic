@@ -8,6 +8,7 @@ Data and details are available at: https://www.kaggle.com/c/dogs-vs-cats/data
 """
 
 import numpy as np
+import pandas as pd
 from sklearn import linear_model
 from sklearn.model_selection import train_test_split
 import statsmodels.api as sm
@@ -106,10 +107,10 @@ def x_adv_list2png(x_0, x_adv_list, filename):
     for i, x_adv in enumerate(x_adv_list):
         alpha = x_adv['alpha']
         axarr[1+i,0].imshow(vector2image(x_adv['x_adv_star']))
-        axarr[1+i,0].set_title('Adversarial Example (α = {0})'.format(alpha))
-        delta_star_plot = vector2image(np.abs(x_adv['x_adv_star'][1:] - x_0))
+        axarr[1+i,0].set_title('Adversarial Example\nα = {0}, δ = {1:.2f}'.format(alpha, x_adv['lambda_star']))
+        delta_star_plot = vector2image(100*np.abs(x_adv['x_adv_star'][1:] - x_0))
         axarr[1+i,1].imshow(delta_star_plot)
-        axarr[1+i,1].set_title('Adversarial Perturbation (α = {0})'.format(alpha))
+        axarr[1+i,1].set_title('Adversarial Perturbation\nα = {0}, x100'.format(alpha))
     f.tight_layout()
     plt.savefig(filename)
     plt.close()
@@ -265,6 +266,7 @@ save_obj(df_lambds, filename = 'obj/df_lambds.pkl')
 
 fig = plt.figure(figsize=(7, 5), dpi=150)
 sns.set_style("whitegrid")
+#plt.yscale('log')
 sns.violinplot( x=df_lambds["alpha"], y=df_lambds["lambd"], palette="Blues")
 plt.xlabel('Missclassification level (α)')
 plt.ylabel('Intensity of the pertubation (δ)')
