@@ -103,7 +103,7 @@ def x_adv_list2png(x_0, x_adv_list, filename):
     axarr[0,0].imshow(vector2image(x_0))
     axarr[0,0].set_title('Original Example')
     axarr[0,1].imshow(vector2image(x_adv_list[0]['x_adv_0']))
-    axarr[0,1].set_title('Orthogonal Projection (α = 0.5)')
+    axarr[0,1].set_title('Orthogonal Projection\nα = 0.5')
     for i, x_adv in enumerate(x_adv_list):
         alpha = x_adv['alpha']
         axarr[1+i,0].imshow(vector2image(x_adv['x_adv_star']))
