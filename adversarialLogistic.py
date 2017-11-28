@@ -174,6 +174,10 @@ class AdversarialLogistic(object):
         if verbose:
             print('value a: {0}'.format(a))
         DeltaEq2 = b**2 - 4*a*c
+        if a < 1e-7:
+            raise ArithmeticError('Risk of underflow')
+        if verbose:
+            print('value delta: {0}'.format(DeltaEq2))
         if abs(DeltaEq2) < tol: # DeltaEq2 == 0 
             if verbose:
                 print('One solution')

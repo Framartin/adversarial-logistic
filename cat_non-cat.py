@@ -101,10 +101,11 @@ def x_adv_list2png(x_0, x_adv_list, filename):
     axarr[0,0].set_title('Original Example')
     axarr[0,1].imshow(vector2image(x_adv_list[0]['x_adv_0']))
     axarr[0,1].set_title('Orthogonal Projection (α = 0.5)')
-    for i, alpha in enumerate(ALPHAS):
-        axarr[1+i,0].imshow(vector2image(x_adv_list[i]['x_adv_star']))
+    for i, x_adv in enumerate(x_adv_list):
+        alpha = x_adv['alpha']
+        axarr[1+i,0].imshow(vector2image(x_adv['x_adv_star']))
         axarr[1+i,0].set_title('Adversarial Example (α = {0})'.format(alpha))
-        delta_star_plot = np.abs(vector2image(x_adv_list[i]['x_adv_star']) - vector2image(x_0)).astype(np.uint8)
+        delta_star_plot = vector2image(np.abs(x_adv['x_adv_star'][1:] - x_0))
         axarr[1+i,1].imshow(delta_star_plot)
         axarr[1+i,1].set_title('Adversarial Perturbation (α = {0})'.format(alpha))
     f.tight_layout()
@@ -233,18 +234,20 @@ alphas_list = []
 
 print('Compute Adversarial Images for X_test...')
 for index, x_0 in enumerate(X_test):
-    if (index % 50 == 0):
-        print('  ...test image #'+str(index))
     x_0 = x_0.reshape(1, -1) # shape: (12288,) -> (12288,1)
     y_0 = y_test[index].squeeze()
     pred_x_0 = lr_l2.predict(x_0)
 
     x_adv_list = []
     for alpha in ALPHAS:
-        x_adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping')
-        x_adv_list.append(x_adv)
-        lambds_list.append(x_adv['lambda_star'])
-        alphas_list.append(alpha)
+        try:
+            x_adv = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, out_bounds='clipping')
+            x_adv_list.append(x_adv)
+            lambds_list.append(x_adv['lambda_star'])
+            alphas_list.append(alpha)
+        except ArithmeticError:
+            print('Underflow. Skipping computation of test example #{0}.'.format(index))
+            continue
 
     # save x_adv_list
     save_obj(x_adv_list, filename = 'obj/x_adv/test_'+str(index)+'.pkl')
