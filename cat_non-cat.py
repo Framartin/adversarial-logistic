@@ -96,7 +96,9 @@ def x_adv_list2png(x_0, x_adv_list, filename):
     """
     Save an image containing all the adversarial examples in x_adv_list.
     """
-    f, axarr = plt.subplots(1+len(ALPHAS),2, figsize=(7, 9), dpi=150)
+    if len(x_adv_list) == 0:
+        return
+    f, axarr = plt.subplots(1+len(x_adv_list),2, figsize=(7, 9), dpi=150)
     axarr[0,0].imshow(vector2image(x_0))
     axarr[0,0].set_title('Original Example')
     axarr[0,1].imshow(vector2image(x_adv_list[0]['x_adv_0']))
