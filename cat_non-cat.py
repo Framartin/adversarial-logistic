@@ -199,7 +199,7 @@ for index, x_0 in enumerate(X_test2):
     y_0 = y_test[index].squeeze()
     pred_x_0 = lr_l2.predict(x_0)
 
-    print('Test2 example #{0} predicted as: {1}'.format(index, pred_x_0[0]))
+    print('Test2 example #{0} (y={1}) predicted as: {2}'.format(index, y_0, pred_x_0[0]))
     # save adversarial images
     x_adv_list = []
     for alpha in ALPHAS:
@@ -254,7 +254,7 @@ for index, x_0 in enumerate(X_test):
     # save x_adv_list
     save_obj(x_adv_list, filename = 'obj/x_adv/test_'+str(index)+'.pkl')
 
-    print('Test example #{0} predicted as: {1}'.format(index, pred_x_0[0]))
+    print('Test example #{0} (y={1}) predicted as: {2}'.format(index, y_0, pred_x_0[0]))
     # plot and save the images
     x_adv_list2png(x_0, x_adv_list, filename='images/cats/test/adv_picture_'+str(index)+'.png')
 
