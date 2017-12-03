@@ -286,15 +286,15 @@ class AdversarialLogistic(object):
         del alpha
 
         # compute (only 1 time) P[pred(x)=y]
-        if x_correctly_predicted:
-            proba_predx_equals_y = None # not computed, because not used
-        else:
-            proba_predx_equals_y = self.__compute_probability_predx_equals_y(x, y)
+        proba_predx_equals_y = self.__compute_probability_predx_equals_y(x, y)
 
         results = []
         for a in alphas:
-            if (not x_correctly_predicted) and (proba_predx_equals_y >= a):
-                # x already ok, ie. P[pred(x)=y] >= alpha 
+            if proba_predx_equals_y <= 1-a:
+                # x is already ok, ie. P[pred(x)≠y] >= alpha => P[pred(x)=y] <= 1-alpha
+                # note: x is already ok =>  1. alpha <= 0.5, if x correctly predicted
+                #                           2. alpha >= 0.5, if x not correctly predicted
+                # in this case, we set lambda to 0
                 x_adv_star = x
                 result_dict = {'alpha': a, 'lambda_star': 0, 'x_adv_star': x, 'x_adv_0': None}
             else:
@@ -302,35 +302,18 @@ class AdversarialLogistic(object):
                 x_adv_star = x + lambda_star * delta
                 result_dict = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
             # check pred(x_adv_star)
-            if x_correctly_predicted:
-                if a > 0.5 + tol:
-                    assert((x_adv_star.dot(self.beta_hat) > 0) != y)
-                elif a < 0.5 - tol:
-                    assert((x_adv_star.dot(self.beta_hat) > 0) == y)
-            else:
-                if a > 0.5 + tol:
-                    #assert((x_adv_star.dot(self.beta_hat) > 0) != y)
-                    #TODO: need fix.
-                    if (x_adv_star.dot(self.beta_hat) > 0) == y:
-                        print('ERROR. Not expected prediction.')
-                        import pickle
-                        with open('bug_pred_not_correctly_pred.pkl', 'wb') as output:
-                            test = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star,
-                                'x_adv_0': x_adv_0, 'delta': delta, 'proba_predx_equals_y': proba_predx_equals_y,
-                                'x':x, 'y':y, 'beta_hat': self.beta_hat}
-                            pickle.dump(test, output, pickle.HIGHEST_PROTOCOL)
-                else:
-                    # we don't know the prediction of the attacker model
-                    pass
+            if a > 0.5 + tol:
+                assert((x_adv_star.dot(self.beta_hat) > 0) != y)
+            elif a < 0.5 - tol:
+                assert((x_adv_star.dot(self.beta_hat) > 0) == y)
             # check range of x_adv_star
             result_dict['x_adv_star'] = self.__check_bounds(result_dict['x_adv_star'], out_bounds, verbose=verbose)
             # return dict if only one alpha
             if len(alphas) == 1:
                return result_dict
-            # return list of dicts if several alphas
             else:
+                # return list of dicts if several alphas
                 results.append(result_dict)
-        # TODO: add check using __compute_probability_predx_equals_y() >= alpha
         return results
 
 def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **kwargs):
