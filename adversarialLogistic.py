@@ -297,15 +297,16 @@ class AdversarialLogistic(object):
                 # in this case, we set lambda to 0
                 x_adv_star = x
                 result_dict = {'alpha': a, 'lambda_star': 0, 'x_adv_star': x, 'x_adv_0': None}
+                # we do not check pred(x_adv_star), because it can be either y or 1-y.
             else:
                 lambda_star = self.__solve_lambda(alpha=a, x=x, y=y, delta=delta, tol=tol, verbose=verbose)
                 x_adv_star = x + lambda_star * delta
                 result_dict = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
-            # check pred(x_adv_star)
-            if a > 0.5 + tol:
-                assert((x_adv_star.dot(self.beta_hat) > 0) != y)
-            elif a < 0.5 - tol:
-                assert((x_adv_star.dot(self.beta_hat) > 0) == y)
+                # check pred(x_adv_star)
+                if a > 0.5 + tol:
+                    assert((x_adv_star.dot(self.beta_hat) > 0) != y)
+                elif a < 0.5 - tol:
+                    assert((x_adv_star.dot(self.beta_hat) > 0) == y)
             # check range of x_adv_star
             result_dict['x_adv_star'] = self.__check_bounds(result_dict['x_adv_star'], out_bounds, verbose=verbose)
             # return dict if only one alpha
