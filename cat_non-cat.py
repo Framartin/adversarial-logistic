@@ -147,7 +147,9 @@ if DEBUG:
 if not os.path.isfile('obj/adv.pkl'):
     # sklearn LR with L2 regularization
     # search for the best C hyperparameter
-    lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', solver='sag', random_state = 42, n_jobs=-1)
+    lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', solver='sag', Cs=100,
+        random_state = 42, n_jobs=-1)
+    # Cs=100 : grid of 100 values
     lr_l2_CV.fit(X_train, y_train)
     bestC = lr_l2_CV.C_[0]
     print('Best C found: {0}'.format(bestC))
@@ -272,3 +274,4 @@ plt.xlabel('Missclassification level (α)')
 plt.ylabel('Intensity of the pertubation (δ)')
 plt.title('Pertubations intensities of the test examples')
 plt.savefig('images/cats_violinplot_lamdbas_test_examples.png')
+
