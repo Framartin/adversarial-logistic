@@ -2,7 +2,7 @@
 Spambase Data Set
 https://archive.ics.uci.edu/ml/datasets/spambase
 
-TODO : http://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
+TODO: http://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
 """
 
 import numpy as np
@@ -57,7 +57,7 @@ print('lambda_star: {0}'.format(x_adv_glm['lambda_star']))
 #adv_glm.plot_lambda_vs_alpha(x=x_0_with_const, y=y_0, matplotlib=plt, alpha_max = 0.96, label = 'GLM', color='r')
 # explode in alpha=0.98 
 # store for future plot
-pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0, alpha=np.arange(0.001, 0.93, 0.001).tolist(), verbose=False)
+pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0, alpha=np.arange(0.04, 0.93, 0.001).tolist(), verbose=False)
 
 # L2 regularized statsmodels
 # the computation of cov_params is not implemented.
@@ -70,7 +70,7 @@ pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0,
 # An hacky solution is to set C to a very high value.
 # See: https://github.com/scikit-learn/scikit-learn/issues/6738
 
-lr = linear_model.LogisticRegression(C = 1e12, random_state = 1234)
+lr = linear_model.LogisticRegression(C = 1e12, solver='liblinear', random_state = 1234)
 lr.fit(X_train, y_train)
 lr_acc_is = lr.score(X = X_train, y = y_train)
 lr_acc_oos = lr.score(X = X_test, y = y_test)
@@ -98,7 +98,16 @@ pertubations_sk = adv_sk.compute_adversarial_perturbation(x_0, y_0, alpha=ALPHAS
 
 
 # L2 regularized sklearn
-lr_l2 = linear_model.LogisticRegression(penalty = 'l2', random_state = 42) # TODO: tune param C?
+lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', solver='liblinear', Cs=100,
+    random_state = 42, n_jobs=-1)
+# Cs=100 : grid of 100 values
+lr_l2_CV.fit(X_train, y_train)
+bestC = lr_l2_CV.C_[0]
+del lr_l2_CV
+# retrain LR with the best C
+# this is the same than above, but currently adversarialLogistic 
+# doesn't support linear_model.LogisticRegressionCV
+lr_l2 = linear_model.LogisticRegression(penalty = 'l2', solver='liblinear', random_state = 42, C=bestC, n_jobs=-1)
 lr_l2.fit(X_train, y_train)
 lr_l2_acc_is = lr_l2.score(X = X_train, y = y_train)
 lr_l2_acc_oos = lr_l2.score(X = X_test, y = y_test)
@@ -109,6 +118,7 @@ x_adv_skl2 = adv_skl2.compute_adversarial_perturbation(x_0, y_0, alpha=0.95)
 x_adv_skl2_0 = x_adv_skl2['x_adv_0'][1:].reshape((1, x_adv_skl2['x_adv_0'].shape[0]-1))
 x_adv_skl2_star = x_adv_skl2['x_adv_star'][1:].reshape((1, x_adv_skl2['x_adv_star'].shape[0]-1))
 print('**L2-regularized sklearn**')
+print('Best C found: {0}'.format(bestC))
 print('number of iterations: {0}'.format(lr_l2.n_iter_))
 print('accuracy in-sample: {0}'.format(lr_l2_acc_is))
 print('accuracy out-of-sample: {0}'.format(lr_l2_acc_oos))
@@ -176,13 +186,14 @@ plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
 
 #TODO: represent multiple values of alphas
 ALPHA = 0.90
+
 # TODO: for now, we remove the test observations that are incorrectly classified
-correctly_classified = (((adv_glm.model.predict(X_test_with_const)>0.5) == y_test ) & 
-    ( adv_sk.model.predict(X_test) == y_test ) & 
-    ( adv_skl2.model.predict(X_test) == y_test ) )
-X_test = X_test.loc[correctly_classified,:]
-X_test_with_const = X_test_with_const.loc[correctly_classified,:]
-y_test = y_test.loc[correctly_classified]
+#correctly_classified = (((adv_glm.model.predict(X_test_with_const)>0.5) == y_test ) & 
+#    ( adv_sk.model.predict(X_test) == y_test ) & 
+#    ( adv_skl2.model.predict(X_test) == y_test ) )
+#X_test = X_test.loc[correctly_classified,:]
+#X_test_with_const = X_test_with_const.loc[correctly_classified,:]
+#y_test = y_test.loc[correctly_classified]
 # TODO: viz of density of lamdba star by groups:
 #   - x_0 incorrectly classified by attacker as 1,
 #   - x_0 correctly classified by attacker as 1,
@@ -212,7 +223,8 @@ df_lambdas = pd.concat([lambdas_glm, lambdas_sk, lambdas_skl2])
 plt.close()
 fig = plt.figure(figsize=(7, 5), dpi=150)
 sns.set_style("whitegrid")
-plt.ylim((0,6))
+#plt.ylim((0,6))
+plt.ylim((-3,6))
 #plt.yscale('log')
 sns.violinplot( x=df_lambdas["model"], y=df_lambdas["lambdas"], palette=COLORS_MODELS)
 plt.show()
