@@ -267,13 +267,14 @@ class AdversarialLogistic(object):
         assert(y in [0,1])
         x_correctly_predicted = ((x.dot(self.beta_hat) > 0) == y) # is x correctly predicted by the model?
         delta = self.compute_orthogonal_projection(x)
-        if x_correctly_predicted:
-            x_adv_0 = x + delta
-        else:
-            x_adv_0 = x - delta # the perturbation moves away from the decision hyperplane
+        # x_adv_0 corresponds to a missclassification level = 0.5
+        x_adv_0 = x + delta
         # check pred(x_adv_0)
         # the overshoot should prevent underflow
-        assert((x_adv_0.dot(self.beta_hat) > 0) != y)
+        if x_correctly_predicted:
+            assert((x_adv_0.dot(self.beta_hat) > 0) != y)
+        else:
+            assert((x_adv_0.dot(self.beta_hat) > 0) == y)
         # check range of x_adv_0
         x_adv_0 = self.__check_bounds(x_adv_0, out_bounds, verbose=verbose_bounds)
 
@@ -296,7 +297,7 @@ class AdversarialLogistic(object):
                 #                           2. alpha >= 0.5, if x not correctly predicted
                 # in this case, we set lambda to 0
                 x_adv_star = x
-                result_dict = {'alpha': a, 'lambda_star': 0, 'x_adv_star': x, 'x_adv_0': None}
+                result_dict = {'alpha': a, 'lambda_star': 0, 'x_adv_star': x, 'x_adv_0': x_adv_0}
                 # we do not check pred(x_adv_star), because it can be either y or 1-y.
             else:
                 lambda_star = self.__solve_lambda(alpha=a, x=x, y=y, delta=delta, tol=tol, verbose=verbose)
