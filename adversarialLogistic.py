@@ -173,12 +173,14 @@ class AdversarialLogistic(object):
         c = x.T.dot(A).dot(x)
         if verbose:
             print('value a: {0}'.format(a))
+            print('value b: {0}'.format(b))
         DeltaEq2 = b**2 - 4*a*c
         if a < 1e-7:
             raise ArithmeticError('Risk of underflow')
         if verbose:
             print('value delta: {0}'.format(DeltaEq2))
-        if abs(DeltaEq2) < tol: # DeltaEq2 == 0 
+        if (abs(DeltaEq2) < tol) and (DeltaEq2 <= 0): # DeltaEq2 == 0
+            # due to underflow, we tolerate Delta to be negative but close to 0 
             if verbose:
                 print('One solution')
             return -b/(2*a)
@@ -190,7 +192,7 @@ class AdversarialLogistic(object):
             lambda1 = (-b - DeltaEq2**0.5) / (2*a)
             lambda2 = (-b + DeltaEq2**0.5) / (2*a)
             if verbose:
-                print('Two solutions: {0}, {1}'.format(lambda2, lambda1))
+                print('Two solutions: {0}, {1}'.format(lambda1, lambda2))
             for lambda_star in [lambda1, lambda2]:
                 x_adv = x + lambda_star*delta
                 d = math.sqrt(2)*special.erfinv(2*alpha-1)
@@ -235,10 +237,10 @@ class AdversarialLogistic(object):
         if not (hasattr(self, 'cov_params')):
             raise Exception('Missing cov_params. Call: self.compute_covariance(X_train, y_train)')
         # compute the estimation of the mean and variance of the normal random variable x^T beta_hat
-        mu = x.dot(self.beta_hat).squeeze()
+        mu = x.T.dot(self.beta_hat).squeeze()
         sigma = x.T.dot(self.cov_params).dot(x).squeeze()
         assert(type(mu) in [np.float64, float] and type(sigma) in [np.float64, float])
-        proba_xbeta_inf_0 = stats.norm.cdf(0, loc=mu, scale=sigma)
+        proba_xbeta_inf_0 = stats.norm.cdf(0, loc=mu, scale=math.sqrt(sigma))
         if y == 0:
             return proba_xbeta_inf_0
         elif y == 1:
@@ -291,8 +293,8 @@ class AdversarialLogistic(object):
 
         results = []
         for a in alphas:
-            if proba_predx_equals_y <= 1-a:
-                # x is already ok, ie. P[pred(x)≠y] >= alpha => P[pred(x)=y] <= 1-alpha
+            if 1-proba_predx_equals_y >= a:
+                # x is already ok, ie. P[pred(x)≠y] >= alpha <=> 1-P[pred(x)=y] >= alpha
                 # note: x is already ok =>  1. alpha <= 0.5, if x correctly predicted
                 #                           2. alpha >= 0.5, if x not correctly predicted
                 # in this case, we set lambda to 0
@@ -308,6 +310,9 @@ class AdversarialLogistic(object):
                     assert((x_adv_star.dot(self.beta_hat) > 0) != y)
                 elif a < 0.5 - tol:
                     assert((x_adv_star.dot(self.beta_hat) > 0) == y)
+                # check P[pred(x_adv_star)≠y] >= alpha
+                proba_predxadvstar_equals_y = self.__compute_probability_predx_equals_y(x_adv_star, y)
+                assert(1-proba_predxadvstar_equals_y + tol >= a)
             # check range of x_adv_star
             result_dict['x_adv_star'] = self.__check_bounds(result_dict['x_adv_star'], out_bounds, verbose=verbose)
             # return dict if only one alpha
