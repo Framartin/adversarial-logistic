@@ -6,7 +6,7 @@ TODO: description
 ## 0. Installation
 
 ```
-#sudo pip3 install virtualenv python3-tk
+#sudo apt install virtualenv python3-tk
 virtualenv -p python3 venv
 . venv/bin/activate
 pip install -r requirements.txt
@@ -51,13 +51,14 @@ The processed images are stored on `data/cats/data64`. You can safely delete `da
 - draw plots of delta versus alpha for a small sample of squared images of `data/cats/data64/test`, called `test2`
 - draw a violinplot of the deltas computed on the labelled test set (30% of `data/cats/data64/train`, called `test`)
 
-**Becareful:** the computation of the variance-covariance needs quite a lot of RAM. 8 Gio should be enough.
+**Becareful:** the computation of the variance-covariance matrix needs quite a lot of RAM. 8 Gio in total should be enough. The execution of the script takes a lot time, because computing the adversarial perturbations associated to each test examples is computationally expensive.
 
 ```
 mkdir -p images/cats/test
 mkdir -p images/cats/test2
 mkdir -p obj/x_adv
-python cat_non-cat.py >>log_cats.txt 2>&1
+python -u cat_non-cat.py 2>&1 | tee log_cats.txt
+# -u argument is optional, but useful to keep track of the execution
 ```
 
 The following informations are saved in the log file:
