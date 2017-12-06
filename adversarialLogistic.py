@@ -142,12 +142,12 @@ class AdversarialLogistic(object):
         return delta
 
     def __solve_lambda(self, alpha, x, y, delta, tol = 1e-6, verbose = False):
-        """Solve the 2nd degree equation for lambda to a given missclassification level.
+        """Solve the 2nd degree equation for lambda to a given misclassification level.
 
         Parameters
         ----------
         alpha : float
-            Missclassification level.
+            Misclassification level.
         x : array_like
             1-D array of the example to perturbate.
         y : int
@@ -247,7 +247,7 @@ class AdversarialLogistic(object):
             return 1-proba_xbeta_inf_0 # probability that x^T beta > 0
 
     def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, verbose=False, verbose_bounds=True):
-        """Compute the adversarial perturbation "intensified" to achieve a given missclassification level.
+        """Compute the adversarial perturbation "intensified" to achieve a given misclassification level.
 
         Parameters
         ----------
@@ -256,7 +256,7 @@ class AdversarialLogistic(object):
         y : array_like
             Single element array corresponding to the true class of x.
         alpha : float or list of float
-            Missclassification level. If a list, pertubations are computed for each float and a list is returned.
+            Misclassification level. If a list, pertubations are computed for each float and a list is returned.
         out_bounds : str
             Comportement when the new adversarial example is outside bounds. Can be set to 'clipping' or 'missing' or 'nothing'.
 
@@ -269,7 +269,7 @@ class AdversarialLogistic(object):
         assert(y in [0,1])
         x_correctly_predicted = ((x.dot(self.beta_hat) > 0) == y) # is x correctly predicted by the model?
         delta = self.compute_orthogonal_projection(x)
-        # x_adv_0 corresponds to a missclassification level = 0.5
+        # x_adv_0 corresponds to a misclassification level = 0.5
         x_adv_0 = x + delta
         # check pred(x_adv_0)
         # the overshoot should prevent underflow
@@ -324,7 +324,7 @@ class AdversarialLogistic(object):
         return results
 
 def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **kwargs):
-    """Plot the intensities of the perturbations associated to the missclassification levels, for multiple models.
+    """Plot the intensities of the perturbations associated to the misclassification levels, for multiple models.
 
     Parameters
     ----------
@@ -351,7 +351,7 @@ def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **k
         alphas = [x['alpha'] for x in perturbations]
         lambdas = [x['lambda_star'] for x in perturbations]
         plt.plot(alphas, lambdas, label=labels[i], color=colors[i], **kwargs)
-    plt.xlabel('Missclassification level (α)')
+    plt.xlabel('Misclassification level (α)')
     plt.ylabel('Intensity of the pertubation (δ)')
     plt.legend()
     if filename is None:
