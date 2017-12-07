@@ -222,7 +222,7 @@ for index, x_0 in enumerate(X_test2):
             out_bounds='clipping', verbose_bounds=False)
         x_adv_list.append(x_adv)
 
-    plot_intensity_vs_level(x_adv_list, labels = ['L2-regularized sklearn'],
+    plot_intensity_vs_level(x_adv_list, labels = None,
         colors = COLORS_MODELS, filename='images/cats_intensity_level_x_test2_'+str(index)+'.png')
 
 del alphas_list
@@ -271,7 +271,7 @@ sns.set_style("whitegrid")
 #plt.yscale('log')
 sns.violinplot( x=df_lambds["alpha"], y=df_lambds["lambd"], palette="Blues")
 plt.xlabel('Misclassification level (α)')
-plt.ylabel('Intensity of the pertubation (δ)')
+plt.ylabel('Intensity of the pertubation (λ)')
 plt.title('Pertubations intensities of the test examples')
 plt.savefig('images/cats_violinplot_lamdbas_test_examples.png')
 

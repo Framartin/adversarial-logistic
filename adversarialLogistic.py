@@ -323,7 +323,7 @@ class AdversarialLogistic(object):
                 results.append(result_dict)
         return results
 
-def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **kwargs):
+def plot_intensity_vs_level(*args, colors, labels=None, ylim=None, filename=None, **kwargs):
     """Plot the intensities of the perturbations associated to the misclassification levels, for multiple models.
 
     Parameters
@@ -348,11 +348,15 @@ def plot_intensity_vs_level(*args, labels, colors, ylim=None, filename=None, **k
     #plt.style.use('ggplot') #bmh
     for i, perturbations in enumerate(args):
         assert(type(perturbations)==list)
+        if labels is None:
+            label = None
+        else:
+            label = labels[i]
         alphas = [x['alpha'] for x in perturbations]
         lambdas = [x['lambda_star'] for x in perturbations]
-        plt.plot(alphas, lambdas, label=labels[i], color=colors[i], **kwargs)
+        plt.plot(alphas, lambdas, label=label, color=colors[i], **kwargs)
     plt.xlabel('Misclassification level (α)')
-    plt.ylabel('Intensity of the pertubation (δ)')
+    plt.ylabel('Intensity of the pertubation (λ)')
     plt.legend()
     if filename is None:
         plt.show()
