@@ -133,45 +133,37 @@ pertubations_skl2 = adv_skl2.compute_adversarial_perturbation(x_0, y_0, alpha=AL
 #some lambda_star_unregularized > lambda_star_l2_regularized, but not for all...
 
 
-# investigate the difference between GLM and sklearn is so high. Why statsmodels is exploding in 0.96 and not in 0.04? 
-# idea: importance of the estimation method. Bugs in the code?
-
-# compare covariance matrices:
-# 1. between the statsmodels one, and the one of our code using the estimated betas by GLM 
-print('Covariance statsmodels/custom code on GLM:')
-W = np.diag(res.fittedvalues*(1-res.fittedvalues))
-Xt_W_X = np.dot(X_train_with_const.T.dot(W), X_train_with_const)
-var_covar_matrix = np.linalg.inv(Xt_W_X)
-del Xt_W_X
-
-np.all(np.around(res.normalized_cov_params, 4)==np.around(var_covar_matrix, 4))
-np.all(np.around(res.normalized_cov_params, 5)==np.around(var_covar_matrix, 5))
-np.max(np.max(np.abs(res.normalized_cov_params - var_covar_matrix)))
-
-adv_glm.cov_params = var_covar_matrix
-#adv_glm.plot_lambda_vs_alpha(x=x_0_with_const, y=y_0, alpha_max = 0.97)
-
-
-# 2. between the statsmodels one, and the one of our code using the estimated betas by sklearn 
+# 2. compare covariance matrices:
+# between the statsmodels one, and the one of our code using the estimated betas by sklearn 
 print('Covariance statsmodels/custom code on sklearn:')
 
 np.all(np.around(res.normalized_cov_params, 4)==np.around(adv_sk.cov_params, 4))
-np.max(np.max(np.abs(res.normalized_cov_params - adv_sk.cov_params))) #WTF?
-# 707.542263
-np.where(np.abs(res.normalized_cov_params - adv_sk.cov_params) > 10)
+varsAbsDiff = np.max(np.abs(res.normalized_cov_params - adv_sk.cov_params))
+np.max(varsAbsDiff) #there is a huge difference between the two
+# 1332
+np.where(varsAbsDiff > 15)
 # there is a huge difference in the estimation of the variance of beta_41
+# 4 biggest elements:
+temp = np.partition(-varsAbsDiff, 4)
+result = -temp[:4]
 
 # there is a big difference between estimates
+betasAbsDiff = np.abs(adv_glm.beta_hat - np.around(adv_sk.beta_hat))
 np.all(np.around(adv_glm.beta_hat, 4)==np.around(adv_sk.beta_hat, 4))
-np.max(np.abs(adv_glm.beta_hat - np.around(adv_sk.beta_hat)))
-np.mean(np.abs(adv_glm.beta_hat - np.around(adv_sk.beta_hat)))
+np.max(betasAbsDiff)
+np.mean(betasAbsDiff)
 
 np.column_stack((adv_glm.beta_hat, adv_sk.beta_hat))
 np.column_stack((adv_glm.beta_hat[41], adv_sk.beta_hat[41]))
 
+# is the perturbation associated to beta_41 strong?
+x_adv_glm['x_adv_0'][41] - x_0_with_const[41]
+np.column_stack((x_adv_glm['x_adv_0'], x_0_with_const))
+x_adv_glm['x_adv_0']-x_0_with_const
+
 print(res.summary())
 
-# 3. plots
+# 3. plots of lambda vs alpha for x_0
 
 plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
     labels=['GLM', 'Unregularized sklearn', 'L2-regularized sklearn'], 
@@ -182,24 +174,9 @@ plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
     colors=COLORS_MODELS, ylim=(0.4, 1.7),
     filename='images/spam_intensities_alphas_zoom.png')
 
-# 4. density of lambda_star
+# 4. density of lambda_star in the test population
 
-#TODO: represent multiple values of alphas
 ALPHA = 0.90
-
-# TODO: for now, we remove the test observations that are incorrectly classified
-#correctly_classified = (((adv_glm.model.predict(X_test_with_const)>0.5) == y_test ) & 
-#    ( adv_sk.model.predict(X_test) == y_test ) & 
-#    ( adv_skl2.model.predict(X_test) == y_test ) )
-#X_test = X_test.loc[correctly_classified,:]
-#X_test_with_const = X_test_with_const.loc[correctly_classified,:]
-#y_test = y_test.loc[correctly_classified]
-# TODO: viz of density of lamdba star by groups:
-#   - x_0 incorrectly classified by attacker as 1,
-#   - x_0 correctly classified by attacker as 1,
-#   - x_0 incorrectly classified by attacker as 0,
-#   - x_0 correctly classified by attacker as 1.
-
 
 def compute_lambdas_star(adv, X_test, y_test, alpha, label_model):
     lambdas = []
@@ -223,8 +200,9 @@ df_lambdas = pd.concat([lambdas_glm, lambdas_sk, lambdas_skl2])
 plt.close()
 fig = plt.figure(figsize=(7, 5), dpi=150)
 sns.set_style("whitegrid")
-#plt.ylim((0,6))
-plt.ylim((-3,6))
-#plt.yscale('log')
-sns.violinplot( x=df_lambdas["model"], y=df_lambdas["lambdas"], palette=COLORS_MODELS)
-plt.show()
+sns.violinplot(x=df_lambdas["model"], y=df_lambdas["lambdas"], palette=COLORS_MODELS, gridsize=1000, scale_hue=False, saturation=0.9)
+plt.xlabel('Model')
+plt.ylabel('Intensity of the pertubation (λ)')
+plt.savefig('images/spam_violinplot.png')
+plt.ylim((-2,9))
+plt.savefig('images/spam_violinplot_zoom.png')
