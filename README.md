@@ -1,7 +1,9 @@
 
 # Intensity of Adversarial Examples for Logistic Regression
 
-TODO: description
+This repository stores the code used in the article Martin Gubri. 2017. "Adversarial perturbation intensity strategy to achieve intra-technique transferability to a chosen misclassification level for logistic regression" available [here](https://mg.frama.io/publication/intensity_adv_perturbation_logitic/).
+
+The code provided can be used to compute adversarial examples that will be misclassified by a logistic regression to a chosen expected rate, under some conditions. The core of the code is `adversarialLogistic.py`, whereas 2 applications can be found in `spam.py` and `cat_non-cat.py`.
 
 ## 0. Installation
 
@@ -17,8 +19,29 @@ For an installation on a server without Xwindows, you can add `backend : Agg` to
 
 ## 1. Spam
 
-TODO
+### 1.1 Download Data
 
+```
+mkdir -p data/spam
+cd data/spam
+wget https://archive.ics.uci.edu/ml/machine-learning-databases/spambase/spambase.zip
+unzip spambase.zip
+cd ../..
+```
+
+### 1.2 Train Model & Compute Adversarial Examples
+
+`spam.py` will:
+
+- estimate 3 logistic regressions using statsmodels (GLM by IRLS), sklearn (L2-regularized and un-regularized)
+- make use of `adversarialLogistic.py` to compute 3 adversarial perturbations, 1 for each model, to the misclassification level of 0.95
+- draw a plot of lambda versus alpha for this example
+- draw a violinplot of the lambdas computed on the all the test set for the 3 models
+
+```
+mkdir -p images/
+python spam.py
+```
 
 ## 2. Cats vs Dogs 
 
@@ -47,9 +70,9 @@ The processed images are stored on `data/cats/data64`. You can safely delete `da
 `cat_non-cat.py` will:
 
 - estimate a logistic regression using sklearn
-- make use of `adversarialLogistic.py` to compute adversarial perturbations to the missclassification levels 0.75, 0.9 and 0.95
-- draw plots of delta versus alpha for a small sample of squared images of `data/cats/data64/test`, called `test2`
-- draw a violinplot of the deltas computed on the labelled test set (30% of `data/cats/data64/train`, called `test`)
+- make use of `adversarialLogistic.py` to compute adversarial perturbations to the misclassification levels 0.75, 0.9 and 0.95
+- draw plots of lambda versus alpha for a small sample of squared images of `data/cats/data64/test`, called `test2`
+- draw a violinplot of the lambdas computed on the labeled test set (30% of `data/cats/data64/train`, called `test`)
 
 **Becareful:** the computation of the variance-covariance matrix needs quite a lot of RAM. 8 Gio in total should be enough. The execution of the script takes a lot time, because computing the adversarial perturbations associated to each test examples is computationally expensive.
 
@@ -65,7 +88,7 @@ The following informations are saved in the log file:
 
 - in-sample and out-of-sample accuracies
 - number of skipped examples due to underflow ($a<10^{-7}$ in the 2nd degree eq. solver). The detection of underflow should be improve in the future.
-- value of C, the regularization parameter, choosen by CV on the train set
+- value of C, the regularization parameter, chosen by CV on the train set
 - for each example, the predicted class and the real one 
 
 ```
