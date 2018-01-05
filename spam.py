@@ -194,6 +194,11 @@ plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
     colors=COLORS_MODELS, ylim=(0.4, 1.7),
     filename='images/spam_intensities_alphas_zoom.png')
 
+plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
+    labels=['IRLS', 'Unregularized liblinear', 'L2-regularized liblinear'], 
+    colors=COLORS_MODELS, ylim=(0.35, 3), linestyles = ['-', '--', '-.'], 
+    filename='images/spam_intensities_alphas_zoom2.png')
+
 
 #--------------------------------------------------
 # V - Densities of the Intensities in the test set

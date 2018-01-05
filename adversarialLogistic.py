@@ -322,17 +322,19 @@ class AdversarialLogistic(object):
                 results.append(result_dict)
         return results
 
-def plot_intensity_vs_level(*args, colors, labels=None, ylim=None, filename=None, **kwargs):
+def plot_intensity_vs_level(*args, colors, labels=None, linestyles=None, ylim=None, filename=None, **kwargs):
     """Plot the intensities of the perturbations associated to the misclassification levels, for multiple models.
 
     Parameters
     ----------
     args : list
         List of dicts returned by compute_adversarial_perturbation(), one list of dicts per model.
-    labels : list of str
-        Labels of models associated to args in the same order. 
     colors : list of colors
         Labels of colors associated to args in the same order.
+    labels : list of str
+        Labels of models associated to args in the same order. 
+    linestyles : list of str
+        Linestyles of models associated to args in the same order. 
     ylim : tuple or None
         Can be set to impose limits to the y axis. Example: (-1, 3).
     filename : str
@@ -351,9 +353,13 @@ def plot_intensity_vs_level(*args, colors, labels=None, ylim=None, filename=None
             label = None
         else:
             label = labels[i]
+        if linestyles is None:
+            linestyle = None
+        else:
+            linestyle = linestyles[i]
         alphas = [x['alpha'] for x in perturbations]
         lambdas = [x['lambda_star'] for x in perturbations]
-        plt.plot(alphas, lambdas, label=label, color=colors[i], **kwargs)
+        plt.plot(alphas, lambdas, label=label, color=colors[i], linestyle=linestyle, **kwargs)
     plt.xlabel('Misclassification level (α)')
     plt.ylabel('Intensity of the pertubation (λ)')
     plt.legend()
