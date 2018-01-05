@@ -66,7 +66,7 @@ print('predict x_0: {0}'.format(res.predict(exog=x_0_with_const)))
 print('predict x_adv_0: {0}'.format(res.predict(exog=x_adv_glm['x_adv_0'])))
 print('predict x_adv_star: {0}'.format(res.predict(exog=x_adv_glm['x_adv_star'])))
 print('lambda_star: {0}'.format(x_adv_glm['lambda_star']))
-#adv_glm.plot_lambda_vs_alpha(x=x_0_with_const, y=y_0, matplotlib=plt, alpha_max = 0.96, label = 'GLM', color='r')
+#adv_glm.plot_lambda_vs_alpha(x=x_0_with_const, y=y_0, matplotlib=plt, alpha_max = 0.96, label = 'IRLS', color='r')
 # explode in alpha=0.98 
 # store for future plot
 pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0, alpha=np.arange(0.04, 0.93, 0.001).tolist(), verbose=False)
@@ -104,7 +104,7 @@ print('predict x_0: {0}'.format(lr.predict_proba(x_0)[0,adv_sk.model.classes_==1
 print('predict x_adv_0: {0}'.format(lr.predict_proba(x_adv_sk_0)[0,adv_sk.model.classes_==1][0]))
 print('predict x_adv_star: {0}'.format(lr.predict_proba(x_adv_sk_star)[0,adv_sk.model.classes_==1][0]))
 print('lambda_star: {0}'.format(x_adv_sk['lambda_star']))
-#adv_sk.plot_lambda_vs_alpha(x=x_0, y=y_0, matplotlib=plt, label = 'Unregularized sklearn', color='orange')
+#adv_sk.plot_lambda_vs_alpha(x=x_0, y=y_0, matplotlib=plt, label = 'Unregularized liblinear', color='orange')
 # store for future plot
 pertubations_sk = adv_sk.compute_adversarial_perturbation(x_0, y_0, alpha=ALPHAS, verbose=False)
 
@@ -138,7 +138,7 @@ print('predict x_0: {0}'.format(lr_l2.predict_proba(x_0)[0,adv_skl2.model.classe
 print('predict x_adv_0: {0}'.format(lr_l2.predict_proba(x_adv_skl2_0)[0,adv_skl2.model.classes_==1][0]))
 print('predict x_adv_star: {0}'.format(lr_l2.predict_proba(x_adv_skl2_star)[0,adv_skl2.model.classes_==1][0]))
 print('lambda_star: {0}'.format(x_adv_skl2['lambda_star']))
-#adv_skl2.plot_lambda_vs_alpha(x=x_0, y=y_0, matplotlib=plt, label = 'L2-regularized sklearn', color='orchid')
+#adv_skl2.plot_lambda_vs_alpha(x=x_0, y=y_0, matplotlib=plt, label = 'L2-regularized liblinear', color='orchid')
 pertubations_skl2 = adv_skl2.compute_adversarial_perturbation(x_0, y_0, alpha=ALPHAS, verbose=False)
 
 # Notes
@@ -186,11 +186,11 @@ print(res.summary())
 # Plots of lambda vs alpha for x_0
 
 plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
-    labels=['GLM', 'Unregularized sklearn', 'L2-regularized sklearn'], 
+    labels=['IRLS', 'Unregularized liblinear', 'L2-regularized liblinear'], 
     colors=COLORS_MODELS, filename='images/spam_intensities_alphas.png')
 
 plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
-    labels=['GLM', 'Unregularized sklearn', 'L2-regularized sklearn'], 
+    labels=['IRLS', 'Unregularized liblinear', 'L2-regularized liblinear'], 
     colors=COLORS_MODELS, ylim=(0.4, 1.7),
     filename='images/spam_intensities_alphas_zoom.png')
 
@@ -221,16 +221,16 @@ def compute_lambdas_star(adv, X_test, y_test, alpha, label_model):
     })
     return df_lambdas
 
-lambdas_glm = compute_lambdas_star(adv = adv_glm, X_test = X_test_with_const, y_test = y_test, alpha = ALPHA, label_model = 'GLM')
-lambdas_sk = compute_lambdas_star(adv = adv_sk, X_test = X_test, y_test = y_test, alpha = ALPHA, label_model = 'Unregularized sklearn')
-lambdas_skl2 = compute_lambdas_star(adv = adv_skl2, X_test = X_test, y_test = y_test, alpha = ALPHA, label_model = 'L2-regularized sklearn')
+lambdas_glm = compute_lambdas_star(adv = adv_glm, X_test = X_test_with_const, y_test = y_test, alpha = ALPHA, label_model = 'IRLS')
+lambdas_sk = compute_lambdas_star(adv = adv_sk, X_test = X_test, y_test = y_test, alpha = ALPHA, label_model = 'Unregularized liblinear')
+lambdas_skl2 = compute_lambdas_star(adv = adv_skl2, X_test = X_test, y_test = y_test, alpha = ALPHA, label_model = 'L2-regularized liblinear')
  
 # violinplot
 df_lambdas = pd.concat([lambdas_glm, lambdas_sk, lambdas_skl2])
 plt.close()
 fig = plt.figure(figsize=(7, 5), dpi=150)
 sns.violinplot(x=df_lambdas["model"], y=df_lambdas["lambdas"], palette=COLORS_MODELS, gridsize=1000, scale_hue=False, saturation=0.9)
-plt.xlabel('Model')
+plt.xlabel('Estimation Method')
 plt.ylabel('Intensity of the pertubation (λ)')
 plt.savefig('images/spam_violinplot.png')
 plt.savefig('images/spam_violinplot.pdf')
