@@ -15,8 +15,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import special, stats
 
-#import pdb; pdb.set_trace()
-
 class AdversarialLogistic(object):
     """AdversarialLogistic is a class to compute the intensity of an adversarial 
     perturbation for a given logistic regression."""
@@ -141,7 +139,7 @@ class AdversarialLogistic(object):
             delta = np.insert(delta, self.idx_beta0, 0) # add back the constant
         return delta
 
-    def __solve_lambda(self, alpha, x, y, delta, tol = 1e-6, verbose = False):
+    def __solve_lambda(self, alpha, x, y, delta, tol = 1e-6, tol_underflow = 1e-7, verbose = False):
         """Solve the 2nd degree equation for lambda to a given misclassification level.
 
         Parameters
@@ -175,7 +173,7 @@ class AdversarialLogistic(object):
             print('value a: {0}'.format(a))
             print('value b: {0}'.format(b))
         DeltaEq2 = b**2 - 4*a*c
-        if a < 1e-7:
+        if a < tol_underflow:
             raise ArithmeticError('Risk of underflow')
         if verbose:
             print('value delta: {0}'.format(DeltaEq2))
@@ -246,7 +244,7 @@ class AdversarialLogistic(object):
         elif y == 1:
             return 1-proba_xbeta_inf_0 # probability that x^T beta > 0
 
-    def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, verbose=False, verbose_bounds=True):
+    def compute_adversarial_perturbation(self, x, y, alpha=0.95, out_bounds='nothing', tol=1e-6, tol_underflow=1e-7, verbose=False, verbose_bounds=True):
         """Compute the adversarial perturbation "intensified" to achieve a given misclassification level.
 
         Parameters
@@ -302,7 +300,8 @@ class AdversarialLogistic(object):
                 result_dict = {'alpha': a, 'lambda_star': 0, 'x_adv_star': x, 'x_adv_0': x_adv_0}
                 # we do not check pred(x_adv_star), because it can be either y or 1-y.
             else:
-                lambda_star = self.__solve_lambda(alpha=a, x=x, y=y, delta=delta, tol=tol, verbose=verbose)
+                lambda_star = self.__solve_lambda(alpha=a, x=x, y=y, delta=delta, tol=tol, 
+                    tol_underflow=tol_underflow, verbose=verbose)
                 x_adv_star = x + lambda_star * delta
                 result_dict = {'alpha': a, 'lambda_star': lambda_star, 'x_adv_star': x_adv_star, 'x_adv_0': x_adv_0}
                 # check pred(x_adv_star)
