@@ -1,8 +1,6 @@
 """
 Spambase Data Set
 https://archive.ics.uci.edu/ml/datasets/spambase
-
-TODO: http://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
 """
 
 import numpy as np
@@ -16,9 +14,16 @@ from sklearn import metrics
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-
 ALPHAS = np.arange(0.001, 0.999, 0.001).tolist()
 COLORS_MODELS = ['r', 'orange', 'orchid']
+
+
+#--------------------------------
+# I - Data
+#--------------------------------
+
+# We create two DataFrame for each objects, because statsmodels.GLM needs the
+# constant to be passed as a column.
 
 data = pd.read_csv('data/spam/spambase.data', header=None)
 data.rename(columns={57:'spam'}, inplace=True)
@@ -36,6 +41,13 @@ x_0 = X_test.iloc[[idx_x0]].as_matrix()
 x_0_with_const = X_test_with_const.iloc[[idx_x0]].as_matrix().squeeze()
 y_0 = y_test.iloc[[idx_x0]].squeeze()
 
+
+#------------------------------------------
+# II - Train Logistic Regressions
+#         and Compute Adversarial Examples
+#------------------------------------------
+
+# A - GLM
 glm_binom = sm.GLM(y_train, X_train_with_const, family=sm.families.Binomial())
 res = glm_binom.fit()
 y_pred = (res.predict(exog=X_train_with_const) > 0.5)
@@ -60,12 +72,12 @@ print('lambda_star: {0}'.format(x_adv_glm['lambda_star']))
 pertubations_glm = adv_glm.compute_adversarial_perturbation(x_0_with_const, y_0, alpha=np.arange(0.04, 0.93, 0.001).tolist(), verbose=False)
 
 # L2 regularized statsmodels
-# the computation of cov_params is not implemented.
+# Commented bc. the computation of cov_params is not implemented.
 #glm_L2 = sm.GLM(y, data, family=sm.families.Binomial())
 #res_L2 = glm_L2.fit_regularized(alpha=1.0, L1_wt=0.0)
 #res_L2.normalized_cov_params
 
-# unregularized sklearn
+# B - Unregularized sklearn
 # scikit-learn do not yet support unregularized logistic regression.
 # An hacky solution is to set C to a very high value.
 # See: https://github.com/scikit-learn/scikit-learn/issues/6738
@@ -75,7 +87,7 @@ lr.fit(X_train, y_train)
 lr_acc_is = lr.score(X = X_train, y = y_train)
 lr_acc_oos = lr.score(X = X_test, y = y_test)
 
-# compare estimates
+# compare estimates between estimation methods
 lr.coef_.squeeze()
 res.params.as_matrix()
 
@@ -97,7 +109,7 @@ print('lambda_star: {0}'.format(x_adv_sk['lambda_star']))
 pertubations_sk = adv_sk.compute_adversarial_perturbation(x_0, y_0, alpha=ALPHAS, verbose=False)
 
 
-# L2 regularized sklearn
+# C - L2 regularized sklearn
 lr_l2_CV = linear_model.LogisticRegressionCV(penalty = 'l2', solver='liblinear', Cs=100,
     random_state = 42, n_jobs=-1)
 # Cs=100 : grid of 100 values
@@ -130,11 +142,14 @@ print('lambda_star: {0}'.format(x_adv_skl2['lambda_star']))
 pertubations_skl2 = adv_skl2.compute_adversarial_perturbation(x_0, y_0, alpha=ALPHAS, verbose=False)
 
 # Notes
-#some lambda_star_unregularized > lambda_star_l2_regularized, but not for all...
+# some lambda_star_unregularized > lambda_star_l2_regularized, but not for all.
 
 
-# 2. compare covariance matrices:
-# between the statsmodels one, and the one of our code using the estimated betas by sklearn 
+#-----------------------------------
+# III - Compare Covariance Matrices 
+#-----------------------------------
+
+# Compare the statsmodels IRLS one, and the one of our code using the estimated betas by sklearn 
 print('Covariance statsmodels/custom code on sklearn:')
 
 np.all(np.around(res.normalized_cov_params, 4)==np.around(adv_sk.cov_params, 4))
@@ -163,7 +178,12 @@ x_adv_glm['x_adv_0']-x_0_with_const
 
 print(res.summary())
 
-# 3. plots of lambda vs alpha for x_0
+
+#----------------------------------------------------
+# IV - Intensity vs Missclassification Level for x_0
+#----------------------------------------------------
+
+# Plots of lambda vs alpha for x_0
 
 plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
     labels=['GLM', 'Unregularized sklearn', 'L2-regularized sklearn'], 
@@ -174,7 +194,13 @@ plot_intensity_vs_level(pertubations_glm, pertubations_sk, pertubations_skl2,
     colors=COLORS_MODELS, ylim=(0.4, 1.7),
     filename='images/spam_intensities_alphas_zoom.png')
 
-# 4. density of lambda_star in the test population
+
+#--------------------------------------------------
+# V - Densities of the Intensities in the test set
+#        accross estimation methods
+#--------------------------------------------------
+
+# Density of lambda_star in the test population
 
 ALPHA = 0.90
 
@@ -213,7 +239,12 @@ plt.savefig('images/spam_violinplot_zoom.png')
 plt.savefig('images/spam_violinplot_zoom.pdf')
 
 
-# 5. distributions of lambda vs l2-regularization hyperparameter
+#---------------------------------------------------
+# VI - Quantiles of the Intensities in the test set
+#       vs L2-Regularization
+#---------------------------------------------------
+
+# Distributions of lambda vs l2-regularization hyperparameter
 
 # plot accuracy, and quantiles of lambdas computed for alpha = 0.90, versus lamdba_l2 (regularization hyperparameter)
 num_points = 300
@@ -237,7 +268,8 @@ for i, C_ in enumerate(C_range):
         y_test = y_test, alpha = ALPHA, label_model = lambda_l2)
     lambdas_C = lambdas_C.append(lambdas_skl2_C, ignore_index = True)
 
-# draw the evolution of the median, 1rt decile and last decile of lambdas in the test set over values of L2 regularization hyperparameter
+# draw the evolution of the median, 1rt decile and last decile of lambdas in the test set 
+# over values of L2 regularization hyperparameter
 sns.reset_orig()
 plt.figure(figsize=(7, 5), dpi=150)
 plt.xlim(lambdas_C['model'].min(), lambdas_C['model'].max())
