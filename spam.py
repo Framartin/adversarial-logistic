@@ -107,7 +107,7 @@ del lr_l2_CV
 # retrain LR with the best C
 # this is the same than above, but currently adversarialLogistic 
 # doesn't support linear_model.LogisticRegressionCV
-lr_l2 = linear_model.LogisticRegression(penalty = 'l2', solver='liblinear', random_state = 42, C=bestC, n_jobs=-1)
+lr_l2 = linear_model.LogisticRegression(penalty = 'l2', solver='liblinear', random_state = 42, C=bestC)
 lr_l2.fit(X_train, y_train)
 lr_l2_acc_is = lr_l2.score(X = X_train, y = y_train)
 lr_l2_acc_oos = lr_l2.score(X = X_test, y = y_test)
@@ -183,7 +183,11 @@ def compute_lambdas_star(adv, X_test, y_test, alpha, label_model):
     for i in range(0, X_test.shape[0]):
         x_0 = X_test.iloc[[i]].as_matrix().squeeze()
         y_0 = y_test.iloc[[i]].squeeze()
-        lambda_star = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, verbose_bounds=False)['lambda_star']
+        try:
+            lambda_star = adv.compute_adversarial_perturbation(x_0, y_0, alpha=alpha, tol_underflow=1e-9,verbose_bounds=False)['lambda_star']
+        except ArithmeticError:
+            print('Underflow')
+            continue
         lambdas.append(lambda_star)
     df_lambdas = pd.DataFrame({
         'lambdas': lambdas,
@@ -194,15 +198,59 @@ def compute_lambdas_star(adv, X_test, y_test, alpha, label_model):
 lambdas_glm = compute_lambdas_star(adv = adv_glm, X_test = X_test_with_const, y_test = y_test, alpha = ALPHA, label_model = 'GLM')
 lambdas_sk = compute_lambdas_star(adv = adv_sk, X_test = X_test, y_test = y_test, alpha = ALPHA, label_model = 'Unregularized sklearn')
 lambdas_skl2 = compute_lambdas_star(adv = adv_skl2, X_test = X_test, y_test = y_test, alpha = ALPHA, label_model = 'L2-regularized sklearn')
-
+ 
 # violinplot
 df_lambdas = pd.concat([lambdas_glm, lambdas_sk, lambdas_skl2])
 plt.close()
 fig = plt.figure(figsize=(7, 5), dpi=150)
-sns.set_style("whitegrid")
 sns.violinplot(x=df_lambdas["model"], y=df_lambdas["lambdas"], palette=COLORS_MODELS, gridsize=1000, scale_hue=False, saturation=0.9)
 plt.xlabel('Model')
 plt.ylabel('Intensity of the pertubation (λ)')
 plt.savefig('images/spam_violinplot.png')
+plt.savefig('images/spam_violinplot.pdf')
 plt.ylim((-2,9))
 plt.savefig('images/spam_violinplot_zoom.png')
+plt.savefig('images/spam_violinplot_zoom.pdf')
+
+
+# 5. distributions of lambda vs l2-regularization hyperparameter
+
+# plot accuracy, and quantiles of lambdas computed for alpha = 0.90, versus lamdba_l2 (regularization hyperparameter)
+num_points = 300
+C_range = np.geomspace(start = 1e-7, stop = 1e7, num = num_points)
+accuracies_C = pd.DataFrame()
+lambdas_C = pd.DataFrame()
+
+print('Effect of Regularization HP...')
+for i, C_ in enumerate(C_range):
+    print('[{0}] Value C: {1}'.format(i, C_))
+    lr_l2_C = linear_model.LogisticRegression(penalty = 'l2', solver='liblinear', C=C_)
+    lr_l2_C.fit(X_train, y_train)
+    acc_is = lr_l2_C.score(X = X_train, y = y_train)
+    acc_oos = lr_l2_C.score(X = X_test, y = y_test)
+    lambda_l2 = 1.0/C_
+    accuracies_C = accuracies_C.append(pd.DataFrame({'C_': C_, 'lambda_l2': lambda_l2, 
+        'acc_is': acc_is, 'acc_oos': acc_oos}, index=[0]), ignore_index = True)
+    adv_skl2_C = AdversarialLogistic(lr_l2_C, lower_bound=0)
+    adv_skl2_C.compute_covariance(X_train, y_train)
+    lambdas_skl2_C = compute_lambdas_star(adv = adv_skl2_C, X_test = X_test, 
+        y_test = y_test, alpha = ALPHA, label_model = lambda_l2)
+    lambdas_C = lambdas_C.append(lambdas_skl2_C, ignore_index = True)
+
+# draw the evolution of the median, 1rt decile and last decile of lambdas in the test set over values of L2 regularization hyperparameter
+sns.reset_orig()
+plt.figure(figsize=(7, 5), dpi=150)
+plt.xlim(lambdas_C['model'].min(), lambdas_C['model'].max())
+plt.xscale('log')
+plt.plot(accuracies_C['lambda_l2'], accuracies_C['acc_oos'], linewidth=2, linestyle='--')
+medians = lambdas_C.groupby('model').median()
+plt.plot(medians.index, medians.lambdas, linewidth=2, color='#B22400')
+firstdecile = lambdas_C.groupby('model').quantile(q=0.1)
+lastdecile = lambdas_C.groupby('model').quantile(q=0.9)
+plt.fill_between(firstdecile.index, firstdecile.lambdas, lastdecile.lambdas, alpha=0.25, linewidth=0, color='#B22400')
+plt.xlabel('L2-Regularization Hyperparameter')
+#plt.ylabel('Intensity of the pertubation (λ)')
+legend = plt.legend(["Out-of-Sample Accuracy", "Intensity of the pertubation (λ)"], loc=3);
+legend.get_frame()
+plt.savefig('images/spam_intensities_regularization.png')
+plt.savefig('images/spam_intensities_regularization.pdf')
