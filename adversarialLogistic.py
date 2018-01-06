@@ -1,10 +1,18 @@
 """
+This file implements the computation of the intensity of an adversarial example
+for a logistic regression trained using sklearn or statsmodels to achieve a 
+chosen misclassification level.
+Details are available in Martin Gubri (2018) "Adversarial Perturbation
+Intensity Strategy Achieving Chosen Intra-Technique Transferability Level for 
+Logistic Regression", available here:
+https://mg.frama.io/publication/intensity_adv_perturbation_logistic/
 
 
 TODO:
 - use one subclass for each model type for cleaner implementation
-- fix bug: handle the case where, for sklearn, if the constant is already on X_train, beta0 is inside model.coef_
-- remove dependance on statsmodels
+- fix bug: handle the case where, for sklearn, the constant is already on 
+    X_train. In this case, beta_0 is inside model.coef_
+- dependance on statsmodels should be optional
 """
 
 import statsmodels.api as sm
