@@ -1,9 +1,10 @@
 
-# Intensity of Adversarial Examples for Logistic Regression
+# Intensity of Adversarial Perturbations for Logistic Regression
 
-This repository stores the code used in the article Martin Gubri. 2017. "Adversarial perturbation intensity strategy to achieve intra-technique transferability to a chosen misclassification level for logistic regression" available [here](https://mg.frama.io/publication/intensity_adv_perturbation_logitic/).
+This repository stores the code used in the article Martin Gubri (2018) "Adversarial Perturbation Intensity Strategy Achieving Chosen Intra-Technique Transferability Level for Logistic Regression" available [here](https://mg.frama.io/publication/intensity_adv_perturbation_logistic/).
 
 The code provided can be used to compute adversarial examples that will be misclassified by a logistic regression to a chosen expected rate, under some conditions. The core of the code is `adversarialLogistic.py`, whereas 2 applications can be found in `spam.py` and `cat_non-cat.py`.
+
 
 ## 0. Installation
 
